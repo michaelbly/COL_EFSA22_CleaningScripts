@@ -1,0 +1,209 @@
+#SETUP
+rm(list=ls(all=T))
+R.version
+#library(rlang)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(kableExtra)
+library(knitr)
+library(stringi)
+library(plyr)
+library(readr)
+library(openxlsx)
+library(sf)
+library(raster)
+library(Hmisc)
+source("functions/function_handler.R")
+
+assessment_start_date <- as.Date("2022-06-20")
+
+
+# read data from excel file
+#df <- read_excel("input/raw_data/raw_dataset_efsa22_240622.xlsx")
+df <- read.csv("input/raw_data/raw_dataset_efsa22_270622.csv", sep = ";"
+               , comment.char = "", strip.white = TRUE,
+               stringsAsFactors = TRUE, fileEncoding="UTF-8")
+
+
+#############################
+# change column names
+#change_names <- read_excel("Input/Codebook_Questionnaire_EFSA22.xlsx", sheet = "colnames")
+change_names <- read.csv("Input/Codebook_Questionnaire_EFSA22.csv", sep=";")
+names(df) <- plyr::mapvalues(names(df), from = change_names$old_name, to = change_names$new_name)
+table(change_names$new_name %in% names(df))
+
+`%find those not in%`<-function(x,y){x[!(x%in%y)] %>% unique}
+if(any(!(change_names$new_name %in% names(df)))){
+  warning("some names present in  not found in change_names dataset")
+  warning(which(!(change_names$new_name %in% names(df))) %>% length)
+}
+change_names$new_name %find those not in% names(df)
+
+
+
+############################
+# replace accented letters with regular ones
+accented_letters <- function (x)
+{
+  stri_replace_all_fixed(x,
+                         c("á","é","ń","í","ó","ú","ñ","ü"),
+                         c("a","e","n","i","o","u","n","u"),
+                         vectorize_all = FALSE)
+}
+
+df <- rapply(df, f = accented_letters, classes = c("character", "factor"), how = "replace")
+
+
+
+
+#############################
+# set string to lower case and replace everything that is not alphanumeric or underscore by a dot "."
+to_alphanumeric_lowercase <- function (x)
+{
+  tolower(gsub("[^a-zA-Z0-9_]", "\\_", x))
+}
+
+df <- rapply(df, f = to_alphanumeric_lowercase, classes = c("factor", "character"), how = "replace")
+table(sapply(df, is.numeric))
+check_numeric <- df[ , purrr::map_lgl(df, is.numeric)]
+
+
+############################
+# remove interviews that are market rechazado or en curso
+df <- filter(df, 
+                  estado == "finalizada__mobinet_")
+
+
+############################
+# calculate mean interview duration by enumerator
+
+df$duracion_min <- df$duracion / 60
+
+df %>% 
+  group_by(entrevistador) %>%
+  summarise_at(vars(duracion_min), list(name = mean))
+
+
+############################
+# convert all expenditure and income data from factor to numeric
+df[c(which(startsWith(names(df), "gastos_")))] <- 
+  as.data.frame(lapply(df[c(which(startsWith(names(df),"gastos_")))], 
+                       function(x) as.numeric(as.character(x))))
+
+cols = c("ingreso", "ingreso_V");    
+df[,cols] = apply(df[,cols], 2, function(x) as.numeric(as.character(x)))
+
+
+############################
+# convert all age data from individual members to numeric
+df[c(which(endsWith(names(df), "_edad")))] <- 
+  as.data.frame(lapply(df[c(which(endsWith(names(df),"_edad")))], 
+                       function(x) as.numeric(as.character(x))))
+
+cols = c("ingreso", "ingreso_V");    
+df[,cols] = apply(df[,cols], 2, function(x) as.numeric(as.character(x)))
+
+
+####################################
+# when survey does not continue to LCS section, survey is considered incomplete
+df <- df %>% 
+  mutate(not_eligible = case_when(lcs_sacar_ninos_escuela == "" ~ "not_eligible",
+                                  TRUE ~ "eligible"))
+df$not_eligible
+
+
+####################################
+# change date format
+df$date_assessment <- strptime(as.character(df$fecha_in), "%d_%m_%Y")
+df$date_assessment <-  format(df$date, "%Y-%m-%d")
+
+
+
+####################################
+# set min time and max # interviews per day
+
+delete_time_limit <- 30
+flag_time_limit <- 45
+max_interv <- 10
+
+# flag surveys that were below the time limit
+df <- df %>% 
+  mutate(time_validity = case_when(duracion_min < flag_time_limit ~ "Flagged", 
+                                   duracion_min < delete_time_limit ~ "Delete",
+                                   TRUE ~ "valid"))
+
+
+##########################################################################################
+# Deleted interviews column
+df <- df %>% 
+  mutate(
+    delete = case_when(
+      time_validity == "Delete" | iniciar == "no" | not_eligible == "not_eligible" ~ "yes",
+      TRUE ~ "no"))
+table(df$delete)
+
+
+########################################################################################
+###########################################################################################################
+# calculate new variables
+# number of NAs check
+df$NAs <- apply(df,1,FUN=function(x){length(which(is.na(x)))})
+df$NAs
+
+# sum all expenditure in past 30d
+df$tot_gastos <- as.numeric(apply(df[,c("gastos_cereales","gastos_tuberculos",
+                                              "gastos_legumbres","gastos_vegetales",
+                                              "gastos_frutas","gastos_carne",
+                                              "gastos_pescado","gastos_huevos",
+                                              "gastos_aceite", "gastos_leche",
+                                              "gastos_azucar","gastos_condimentos",
+                                              "gastos_bebidas_non_alcoholicas","gastos_comida_fuera_casa",
+                                              "gastos_agua_beber", "gastos_agua_domestico",
+                                              "gastos_renta", "gastos_electricidad",
+                                              "gastos_basura","gastos_higiene",
+                                              "gastos_transporte","gastos_comunicacion",
+                                              "gastos_lena", "gastos_gasolina",
+                                              "gastos_otros")], 
+                                      1, sum))
+
+# average consumption in past week
+df$average_consumption <- (df$fcs_azucares + df$fcs_carne + df$fcs_cereales + df$fcs_condimentos +
+  df$fcs_frutas + df$fcs_leche + df$fcs_vegetales) / 8
+
+
+
+##########################################################################################################
+### EXPORT FOR DATA CHECKING #############
+
+##df<- df %>% 
+##dplyr::select(-(snowballing_willing:`_gpslocation_precision`))
+
+##### Write to csv for data checking ###################
+write.csv(df, sprintf("output/data_checking/mcna_all_data_%s.csv",today()), row.names = F)
+
+
+
+###########################################################################################################
+###########################################################################################################
+###########################################################################################################
+# DO CLEANING
+# read cleaning conditions csv list
+conditionDf_1 <- read.csv("input/conditions/v1_conditions_log.csv", as.is = TRUE, sep = ";")
+
+#debug(read_conditions_from_excel_limited_row)
+
+# return logs
+logs <- read_conditions_from_excel_limited_row(df, conditionDf_1);
+
+
+# create new columns "log_number"
+logs$log_number = seq.int(nrow(logs))
+# order data frame by log_number
+ordered_df <- logs[order(logs$log_number),]
+readr::write_excel_csv(ordered_df, sprintf("Output/cleaning_log/cleaning_log_%s.csv",today()))
+
+# export data with check columns
+#logs_as_columns <- read_conditions_from_excel_column(df, conditionDf_1);
+#write.csv(logs_as_columns, sprintf("output/cleaning_log/data_w_checks/data_checks_%s.csv",today()), row.names = FALSE)
