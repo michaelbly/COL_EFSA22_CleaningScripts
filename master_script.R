@@ -3,26 +3,30 @@ rm(list=ls(all=T))
 R.version
 #library(rlang)
 library(tidyverse)
-library(dplyr)
 library(lubridate)
 library(readxl)
 library(kableExtra)
 library(knitr)
+library(rmarkdown)
 library(stringi)
-library(plyr)
 library(readr)
 library(openxlsx)
 library(sf)
-library(raster)
 library(Hmisc)
+library(rsconnect)
+library(htmlwidgets)
+
 source("functions/function_handler.R")
 
-assessment_start_date <- as.Date("2022-06-20")
+assessment_start_date <- as.Date("2022-06-29")
+
+delete_time_limit <- 30
+flag_time_limit <- 40
 
 
 # read data from excel file
 #df <- read_excel("input/raw_data/raw_dataset_efsa22_240622.xlsx")
-df <- read.csv("input/raw_data/raw_dataset_efsa22_270622.csv", sep = ";"
+df <- read.csv("input/raw_data/raw_dataset_efsa22_290622.csv", sep = ";"
                , comment.char = "", strip.white = TRUE,
                stringsAsFactors = TRUE, fileEncoding="UTF-8")
 
@@ -48,8 +52,8 @@ change_names$new_name %find those not in% names(df)
 accented_letters <- function (x)
 {
   stri_replace_all_fixed(x,
-                         c("á","é","ń","í","ó","ú","ñ","ü"),
-                         c("a","e","n","i","o","u","n","u"),
+                         c("á","é","ń","í","ó","ú","ñ","ü","Á","Ó","Í","Ñ"),
+                         c("a","e","n","i","o","u","n","u","A","O","I","N"),
                          vectorize_all = FALSE)
 }
 
@@ -70,10 +74,22 @@ table(sapply(df, is.numeric))
 check_numeric <- df[ , purrr::map_lgl(df, is.numeric)]
 
 
+#############################
+# rename bogota__d_c_ to bogota_dc
+df$departamento[df$departamento == "bogota__d_c_"] <- "bogota_dc"
+
+
+
 ############################
 # remove interviews that are market rechazado or en curso
 df <- filter(df, 
                   estado == "finalizada__mobinet_")
+
+
+############################
+# classify household in one of the five groups
+df$pop_group <- df$grupo_jefe_hogar
+
 
 
 ############################
@@ -84,6 +100,7 @@ df$duracion_min <- df$duracion / 60
 df %>% 
   group_by(entrevistador) %>%
   summarise_at(vars(duracion_min), list(name = mean))
+df$duracion_min <- round(df$duracion_min, 1)
 
 
 ############################
@@ -123,10 +140,6 @@ df$date_assessment <-  format(df$date, "%Y-%m-%d")
 
 ####################################
 # set min time and max # interviews per day
-
-delete_time_limit <- 30
-flag_time_limit <- 45
-max_interv <- 10
 
 # flag surveys that were below the time limit
 df <- df %>% 
@@ -203,6 +216,7 @@ logs$log_number = seq.int(nrow(logs))
 # order data frame by log_number
 ordered_df <- logs[order(logs$log_number),]
 readr::write_excel_csv(ordered_df, sprintf("Output/cleaning_log/cleaning_log_%s.csv",today()))
+
 
 # export data with check columns
 #logs_as_columns <- read_conditions_from_excel_column(df, conditionDf_1);

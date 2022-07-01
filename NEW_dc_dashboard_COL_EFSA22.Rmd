@@ -1,0 +1,424 @@
+---
+title: 'Reach OPT MSNA 2022: 28/06/2022 as at 12 noon'
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = FALSE,comment = NA, message = FALSE, warning=FALSE, fig.align = 'center' )
+```
+```{r, include=FALSE}
+library(pryr)
+library(magrittr)
+options(dplyr.summarise.inform = FALSE)
+source("functions/function_handler.R")
+
+assessment_start_date <- as.Date("2022-06-21")
+
+##### set min time and max # interviews per day
+
+delete_time_limit <- 30
+flag_time_limit <- 40
+
+dat <- df
+
+#dat <- read.csv("input/raw_data/raw_dataset_efsa22_270622.csv", sep = ";"
+#               , comment.char = "", strip.white = TRUE,
+#               stringsAsFactors = TRUE, fileEncoding="UTF-8")
+
+
+########## SAMPLE FRAMES ########################
+library(readxl)
+strata_region <- read.csv("Input/sample/sample_col_efsa22.csv", sep = ";")
+
+
+permanencia_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "vocacion_permanencia")
+
+
+retornados_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "retornados")
+
+
+pendularios_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "pendularios")
+
+
+acogida_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "comunidad_acogida")
+
+
+transito_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "migrantes_transito")
+
+```
+```{r, include=FALSE}
+########################################################################################
+
+### Interview method 
+interview_method <- dat %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                Location = departamento,
+                interview_type = pop_group) %>% 
+  group_by(Location, interview_type) %>% tally(name = "Number_of_interviews")
+interview_method
+
+
+interview_method_date <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date) %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                Location = departamento) %>% 
+  group_by(Date) %>% tally(name = "Number_of_interviews")
+interview_method_date
+
+# library(plotly)
+# survey_method_graph <- plot_ly(interview_method_date, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews Per Day', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4))
+# survey_method_graph
+# interview_method Wide format
+interview_method_wide <- tidyr::pivot_wider(interview_method, 
+                                            names_from = interview_type, 
+                                            values_from = Number_of_interviews,
+                                            values_fill = list(Number_of_interviews = 0))
+
+
+
+#interview_method_wide <- interview_method_wide %>% 
+#  mutate(Location = case_when(Location == "west_bank" ~ "West Bank",
+#                              Location == "gaza" ~ "Gaza",
+#                              Location == "ej" ~ "East Jerusalem",
+#                              TRUE ~ "West Bank"))
+
+#interview_method_wide <- interview_method_wide %>% 
+#  dplyr::group_by(Location) %>% 
+#  dplyr::summarise("Number of interviews" = sum(Number_of_interviews))
+
+
+```
+```{r, include=FALSE}
+###
+### Interviews Comunidad de Acogida 
+
+interview_method_acogida <- dat %>%
+  dplyr::filter(pop_group == "comunidad_de_acogida") %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_acogida
+
+interview_method_date_acogida <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "comunidad_de_acogida") %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Date) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_acogida
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_acogida <- tidyr::pivot_wider(interview_method_acogida, 
+                                               names_from = population_group, 
+                                               values_from = Number_of_interviews,
+                                               values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_acogida
+
+
+
+### Interview method Migrantes con Vocacion de Permanencia
+interview_method_permanencia <- dat %>%
+  dplyr::filter(pop_group == "vocacion_de_permanencia") %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_permanencia
+
+interview_method_date_permanencia <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "vocacion_de_permanencia") %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Date) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_permanencia
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_permanencia <- tidyr::pivot_wider(interview_method_permanencia, 
+                                                    names_from = population_group, 
+                                                    values_from = Number_of_interviews,
+                                                    values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_permanencia
+
+
+
+
+### Interview method Retornado
+interview_method_retornado <- dat %>%
+  dplyr::filter(pop_group == "retornado") %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_retornado
+
+interview_method_date_retornado <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "retornado") %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Date) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_retornado
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_retornado <- tidyr::pivot_wider(interview_method_retornado, 
+                                                        names_from = population_group, 
+                                                        values_from = Number_of_interviews,
+                                                        values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_permanencia
+
+
+```
+```{r, include=FALSE}
+## Tracking by Population Group: Comunidad de Acogida
+acogida_sample <- acogida_sample_df_summarized %>% 
+  dplyr::select(departamento, Max_Surveys = sample_size)
+acogida_sample
+
+
+acogida_tracking <- dat %>% 
+  dplyr::filter(pop_group == "comunidad_de_acogida") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Submissions = n(),
+                   Short_intv = sum(time_validity == "Deleted", na.rm = T),
+                   Deleted = sum(delete == "yes", na.rm = T),
+                   Accepted = sum(delete == "no", na.rm = T)
+  )
+acogida_tracking
+
+
+acogida_tracking_merged <- left_join(acogida_sample, acogida_tracking, by = "departamento") %>% 
+  mutate(
+    Remaining =  case_when(
+      is.na(Accepted) ~ Max_Surveys,
+      TRUE ~ as.integer((Accepted - Max_Surveys) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_acogida <- as.data.frame(lapply(acogida_tracking_merged, func))
+sumrow_acogida
+acogida_tracking_merged <- rbind(acogida_tracking_merged, sumrow_acogida ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Max_Surveys*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Accepted) ~ Min_Surveys,TRUE ~ (Accepted - Min_Surveys) * -1)
+#                 )
+
+
+########################################################################################
+```
+```{r, include=FALSE}
+########################################################################################
+
+## Tracking by Population Group: Migrantes con Vocacion de Permanencia
+
+permanencia_sample <- permanencia_sample_df_summarized %>% 
+  dplyr::select(departamento, Max_Surveys = sample_size)
+permanencia_sample
+
+
+permanencia_tracking <- dat %>% 
+  dplyr::filter(pop_group == "vocacion_de_permanencia") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Submissions = n(),
+                   Short_intv = sum(time_validity == "Deleted", na.rm = T),
+                   Deleted = sum(delete == "yes", na.rm = T),
+                   Accepted = sum(delete == "no", na.rm = T)
+  )
+permanencia_tracking
+
+
+permanencia_tracking_merged <- left_join(permanencia_sample, permanencia_tracking, by = "departamento") %>% 
+  mutate(
+    Remaining =  case_when(
+      is.na(Accepted) ~ Max_Surveys,
+      TRUE ~ as.integer((Accepted - Max_Surveys) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_permanencia <- as.data.frame(lapply(permanencia_tracking_merged, func))
+sumrow_permanencia
+permanencia_tracking_merged <- rbind(permanencia_tracking_merged, sumrow_permanencia ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Max_Surveys*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Accepted) ~ Min_Surveys,TRUE ~ (Accepted - Min_Surveys) * -1)
+#                 )
+
+
+
+
+
+## Tracking by Population Group: Retornados
+
+retornados_sample <- retornados_sample_df_summarized %>% 
+  dplyr::select(departamento, Max_Surveys = sample_size)
+retornados_sample
+
+
+retornados_tracking <- dat %>% 
+  dplyr::filter(pop_group == "retornado") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Submissions = n(),
+                   Short_intv = sum(time_validity == "Deleted", na.rm = T),
+                   Deleted = sum(delete == "yes", na.rm = T),
+                   Accepted = sum(delete == "no", na.rm = T)
+  )
+retornados_tracking
+
+
+retornados_tracking_merged <- left_join(retornados_sample, retornados_tracking, by = "departamento") %>% 
+  mutate(
+    Remaining =  case_when(
+      is.na(Accepted) ~ Max_Surveys,
+      TRUE ~ as.integer((Accepted - Max_Surveys) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_retornados <- as.data.frame(lapply(retornados_tracking_merged, func))
+sumrow_retornados
+retornados_tracking_merged <- rbind(retornados_tracking_merged, sumrow_retornados ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Max_Surveys*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Accepted) ~ Min_Surveys,TRUE ~ (Accepted - Min_Surveys) * -1)
+#                 )
+
+
+```
+```{r, include=FALSE}
+########################################################################################
+# Started before date of data collection
+started_before <- dat %>% 
+  dplyr::filter(date_assessment < assessment_start_date) %>% 
+  dplyr::select(Date = date_assessment,
+                Enumerator = entrevistador,
+                Location = departamento)
+started_before
+
+# Enumerator productivity
+
+enumerator_productivity <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::group_by(Date = date_assessment, Enumerator = entrevistador) %>% 
+  dplyr::summarise(Interviews = n())
+
+# enumerator_productivity_many <- enumerator_productivity %>% 
+#   dplyr::filter(Interviews > max_interv)
+# 
+# enumerator_productivity_less <- enumerator_productivity %>% 
+#   dplyr::filter(Interviews < 3)
+# 
+# enumerator_productivity_final <- rbind(enumerator_productivity_many, enumerator_productivity_less)%>% 
+#   dplyr::select(Enumerator, Interviews) %>% 
+#   arrange(desc(Enumerator))
+
+enum_productivity <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  group_by(Enumerator = entrevistador) %>% 
+  dplyr::summarise(Interviews = n()) %>% 
+  arrange(desc(Interviews))
+
+
+# Enumerator per survey status 
+
+enumer_per_survey_status <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::group_by(Date = date_assessment, Enumerator = entrevistador) %>% 
+  dplyr::summarise(Accepted = sum(time_validity != "Deleted", na.rm = T),
+            Flagged = sum(time_validity == "Flagged", na.rm = T )
+  )
+enumer_per_survey_status
+
+
+# Survey status per day 
+survey_status_per_day <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  group_by(Date = date_assessment) %>% 
+  dplyr::summarise(Accepted = sum(time_validity != "Delete", na.rm = T),
+            Flagged = sum(time_validity == "Flagged" | time_validity == "Delete", na.rm = T )
+  )
+survey_status_per_day
+
+# survey_len <- dat %>% 
+#   filter(consent == "yes" & enumerator_num == "556") %>% 
+#   dplyr::select(audit_duration)
+# survey length by enumerator
+survey_length <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::group_by(Enumerator = entrevistador) %>% 
+  dplyr::summarise(
+    Median_duration = round(median(as.numeric(duracion_min), na.rm = T),0)
+  )%>% 
+  dplyr::arrange(desc(Median_duration) )
+
+overall_survey_median <- round(median(as.numeric(dat$duracion_min), na.rm = T),0)
+
+survey_length$Overall_median <-  overall_survey_median
+
+
+# Enumerator with short interv duration
+short_interviews_by_enum <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::filter(duracion_min < flag_time_limit) %>% 
+  
+  dplyr::select(Date = date_assessment, 
+                Enumerator = entrevistador, 
+                Location = departamento,
+                Duration =  duracion_min,
+                Interview_Type = pop_group
+  ) %>% mutate(
+    Duration = round(as.numeric(Duration),0),
+  ) %>% 
+  arrange(desc(Date) )
+short_interviews_by_enum <- short_interviews_by_enum
+
+
+```
