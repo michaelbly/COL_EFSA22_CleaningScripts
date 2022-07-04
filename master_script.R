@@ -18,7 +18,7 @@ library(htmlwidgets)
 
 source("functions/function_handler.R")
 
-assessment_start_date <- as.Date("2022-06-29")
+assessment_start_date <- as.Date("2022-07-04")
 
 delete_time_limit <- 30
 flag_time_limit <- 40
@@ -26,7 +26,7 @@ flag_time_limit <- 40
 
 # read data from excel file
 #df <- read_excel("input/raw_data/raw_dataset_efsa22_240622.xlsx")
-df <- read.csv("input/raw_data/raw_dataset_efsa22_290622.csv", sep = ";"
+df <- read.csv("input/raw_data/raw_dataset_efsa22_040722.csv", sep = ";"
                , comment.char = "", strip.white = TRUE,
                stringsAsFactors = TRUE, fileEncoding="UTF-8")
 
@@ -57,7 +57,7 @@ accented_letters <- function (x)
                          vectorize_all = FALSE)
 }
 
-df <- rapply(df, f = accented_letters, classes = c("character", "factor"), how = "replace")
+df <- rapply(df, f = accented_letters, classes = c("factor"), how = "replace")
 
 
 
@@ -194,7 +194,8 @@ df$average_consumption <- (df$fcs_azucares + df$fcs_carne + df$fcs_cereales + df
 ##dplyr::select(-(snowballing_willing:`_gpslocation_precision`))
 
 ##### Write to csv for data checking ###################
-write.csv(df, sprintf("output/data_checking/mcna_all_data_%s.csv",today()), row.names = F)
+write.csv(df, sprintf("output/data_checking/efsa_all_data_%s.csv",today()), row.names = F)
+write.csv(df, sprintf("Dashboard/Input/efsa_all_data_%s.csv",today()), row.names = F)
 
 
 

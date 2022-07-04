@@ -1,0 +1,762 @@
+---
+title: 'WFP-CNC EFSA22: Recogida de Datos - 04/07/2022 10:00'
+output:
+always_allow_html: true
+html_document: default
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = FALSE,comment = NA, message = FALSE, warning=FALSE, fig.align = 'center' )
+```
+```{r, include=FALSE}
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(kableExtra)
+library(knitr)
+library(readr)
+library(openxlsx)
+library(sf)
+library(raster)
+library(Hmisc)
+library(rsconnect)
+library(leaflet)
+library(htmlwidgets)
+library(stringr)
+options(dplyr.summarise.inform = FALSE)
+
+assessment_start_date <- as.Date("2022-07-04")
+
+##### set min time and max # interviews per day
+
+delete_time_limit <- 30
+flag_time_limit <- 40
+
+
+dat <- read.csv("Input/efsa_all_data_2022-07-04.csv",
+               stringsAsFactors = TRUE)
+
+
+########## SAMPLE FRAMES ########################
+library(readxl)
+strata_region <- read.csv("Input/sample_col_efsa22.csv", sep = ";")
+
+
+permanencia_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "vocacion_permanencia")
+
+
+retornados_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "retornados")
+
+
+pendularios_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "pendularios")
+
+
+acogida_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "comunidad_acogida")
+
+
+transito_sample_df_summarized <- strata_region %>% 
+  dplyr::filter(pop_group == "migrantes_transito")
+
+```
+```{r, include=FALSE}
+########################################################################################
+
+### Interview method 
+interview_method <- dat %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                Grupo_Poblacion = pop_group) %>% 
+  group_by(Departamento, Grupo_Poblacion) %>% tally(name = "Number_of_interviews")
+interview_method
+
+
+interview_method_date <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date) %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento) %>% 
+  group_by(Fecha) %>% tally(name = "Number_of_interviews")
+interview_method_date
+
+# library(plotly)
+# survey_method_graph <- plot_ly(interview_method_date, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews Per Day', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4))
+# survey_method_graph
+# interview_method Wide format
+interview_method_wide <- tidyr::pivot_wider(interview_method, 
+                                            names_from = Grupo_Poblacion, 
+                                            values_from = Number_of_interviews,
+                                            values_fill = list(Number_of_interviews = 0))
+
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_completed <- as.data.frame(lapply(interview_method_wide, func))
+sumrow_completed
+interview_method_wide <- rbind(interview_method_wide, sumrow_completed ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+
+
+
+#interview_method_wide <- interview_method_wide %>% 
+#  mutate(Departamento = case_when(Departamento == "west_bank" ~ "West Bank",
+#                              Departamento == "gaza" ~ "Gaza",
+#                              Departamento == "ej" ~ "East Jerusalem",
+#                              TRUE ~ "West Bank"))
+
+#interview_method_wide <- interview_method_wide %>% 
+#  dplyr::group_by(Departamento) %>% 
+#  dplyr::summarise("Number of interviews" = sum(Number_of_interviews))
+
+
+```
+```{r, include=FALSE}
+###
+### Interviews Comunidad de Acogida 
+
+interview_method_acogida <- dat %>%
+  dplyr::filter(pop_group == "comunidad_de_acogida") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(Departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_acogida
+
+interview_method_date_acogida <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "comunidad_de_acogida") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Fecha) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_acogida
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_acogida <- tidyr::pivot_wider(interview_method_acogida, 
+                                               names_from = population_group, 
+                                               values_from = Number_of_interviews,
+                                               values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_acogida
+
+
+
+### Interview method Migrantes con Vocacion de Permanencia
+interview_method_permanencia <- dat %>%
+  dplyr::filter(pop_group == "vocacion_de_permanencia") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(Departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_permanencia
+
+interview_method_date_permanencia <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "vocacion_de_permanencia") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Fecha) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_permanencia
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_permanencia <- tidyr::pivot_wider(interview_method_permanencia, 
+                                                    names_from = population_group, 
+                                                    values_from = Number_of_interviews,
+                                                    values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_permanencia
+
+
+
+
+### Interview method Retornado
+interview_method_retornado <- dat %>%
+  dplyr::filter(pop_group == "retornado") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(Departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_retornado
+
+interview_method_date_retornado <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "retornado") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Fecha) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_retornado
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_retornado <- tidyr::pivot_wider(interview_method_retornado, 
+                                                        names_from = population_group, 
+                                                        values_from = Number_of_interviews,
+                                                        values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_retornado
+
+
+
+
+### Interview method Pendularios
+interview_method_pendulario <- dat %>%
+  dplyr::filter(pop_group == "pendulario") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(Departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_pendulario
+
+interview_method_date_pendulario <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "pendulario") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Fecha) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_pendulario
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_pendulario <- tidyr::pivot_wider(interview_method_pendulario, 
+                                                        names_from = population_group, 
+                                                        values_from = Number_of_interviews,
+                                                        values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_pendulario
+
+
+
+
+### Interview method Migrantes en transito
+interview_method_transito <- dat %>%
+  dplyr::filter(pop_group == "transito") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group
+  ) %>% 
+  group_by(Departamento, population_group) %>% tally(name = "Number_of_interviews")
+
+interview_method_transito
+
+interview_method_date_transito <- dat %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "transito") %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento,
+                population_group = pop_group) %>% 
+  group_by(population_group, Fecha) %>% tally(name = "Number_of_interviews")
+
+interview_method_date_transito
+
+# library(plotly)
+# survey_method_graph_wb <- plot_ly(interview_method_date_wb, x = ~Date, y = ~Number_of_interviews, name = 'Number of Interviews West Bank', type = 'scatter', mode = 'lines',
+#         line = list(color = 'rgb(205, 12, 24)', width = 4)) 
+# survey_method_graph_wb
+# interview_method Wide format
+
+interview_method_wide_transito <- tidyr::pivot_wider(interview_method_transito, 
+                                                        names_from = population_group, 
+                                                        values_from = Number_of_interviews,
+                                                        values_fill = list(Number_of_interviews = 0))
+
+interview_method_wide_transito
+
+
+
+
+```
+```{r, include=FALSE}
+## Tracking by Population Group: Comunidad de Acogida
+acogida_sample <- acogida_sample_df_summarized %>% 
+  dplyr::select(departamento, Tamano_Muestra = sample_size)
+acogida_sample
+
+
+acogida_tracking <- dat %>% 
+  dplyr::filter(pop_group == "comunidad_de_acogida") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Cargado = n(),
+                   Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T),
+                   Borrado = sum(delete == "yes", na.rm = T),
+                   Aceptado = sum(delete == "no", na.rm = T)
+  )
+acogida_tracking
+
+
+acogida_tracking_merged <- left_join(acogida_sample, acogida_tracking, by = "departamento") %>% 
+  mutate(
+    Restante =  case_when(
+      is.na(Aceptado) ~ Tamano_Muestra,
+      TRUE ~ as.integer((Aceptado - Tamano_Muestra) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_acogida <- as.data.frame(lapply(acogida_tracking_merged, func))
+sumrow_acogida
+acogida_tracking_merged <- rbind(acogida_tracking_merged, sumrow_acogida ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Sample_Size*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Aceptado) ~ Min_Surveys,TRUE ~ (Aceptado - Min_Surveys) * -1)
+#                 )
+
+
+########################################################################################
+```
+```{r, include=FALSE}
+########################################################################################
+
+## Tracking by Population Group: Migrantes con Vocacion de Permanencia
+
+permanencia_sample <- permanencia_sample_df_summarized %>% 
+  dplyr::select(departamento, Tamano_Muestra = sample_size)
+permanencia_sample
+
+
+permanencia_tracking <- dat %>% 
+  dplyr::filter(pop_group == "vocacion_de_permanencia") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Cargado = n(),
+                   Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T),
+                   Borrado = sum(delete == "yes", na.rm = T),
+                   Aceptado = sum(delete == "no", na.rm = T)
+  )
+permanencia_tracking
+
+
+permanencia_tracking_merged <- left_join(permanencia_sample, permanencia_tracking, by = "departamento") %>% 
+  mutate(
+    Restante =  case_when(
+      is.na(Aceptado) ~ Tamano_Muestra,
+      TRUE ~ as.integer((Aceptado - Tamano_Muestra) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_permanencia <- as.data.frame(lapply(permanencia_tracking_merged, func))
+sumrow_permanencia
+permanencia_tracking_merged <- rbind(permanencia_tracking_merged, sumrow_permanencia ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Sample_Size*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Aceptado) ~ Min_Surveys,TRUE ~ (Aceptado - Min_Surveys) * -1)
+#                 )
+
+
+
+
+
+## Tracking by Population Group: Retornados
+
+retornados_sample <- retornados_sample_df_summarized %>% 
+  dplyr::select(departamento, Tamano_Muestra = sample_size)
+retornados_sample
+
+
+retornados_tracking <- dat %>% 
+  dplyr::filter(pop_group == "retornado") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Cargado = n(),
+                   Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T),
+                   Borrado = sum(delete == "yes", na.rm = T),
+                   Aceptado = sum(delete == "no", na.rm = T)
+  )
+retornados_tracking
+
+
+retornados_tracking_merged <- left_join(retornados_sample, retornados_tracking, by = "departamento") %>% 
+  mutate(
+    Restante =  case_when(
+      is.na(Aceptado) ~ Tamano_Muestra,
+      TRUE ~ as.integer((Aceptado - Tamano_Muestra) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_retornados <- as.data.frame(lapply(retornados_tracking_merged, func))
+sumrow_retornados
+retornados_tracking_merged <- rbind(retornados_tracking_merged, sumrow_retornados ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Sample_Size*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Aceptado) ~ Min_Surveys,TRUE ~ (Aceptado - Min_Surveys) * -1)
+#                 )
+
+
+
+## Tracking by Population Group: Pendularios
+
+pendularios_sample <- pendularios_sample_df_summarized %>% 
+  dplyr::select(departamento, Tamano_Muestra = sample_size)
+pendularios_sample
+
+
+pendularios_tracking <- dat %>% 
+  dplyr::filter(pop_group == "pendularios") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Cargado = n(),
+                   Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T),
+                   Borrado = sum(delete == "yes", na.rm = T),
+                   Aceptado = sum(delete == "no", na.rm = T)
+  )
+pendularios_tracking
+
+
+pendularios_tracking_merged <- left_join(pendularios_sample, pendularios_tracking, by = "departamento") %>% 
+  mutate(
+    Restante =  case_when(
+      is.na(Aceptado) ~ Tamano_Muestra,
+      TRUE ~ as.integer((Aceptado - Tamano_Muestra) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_pendularios <- as.data.frame(lapply(pendularios_tracking_merged, func))
+sumrow_pendularios
+pendularios_tracking_merged <- rbind(pendularios_tracking_merged, sumrow_pendularios ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Sample_Size*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Aceptado) ~ Min_Surveys,TRUE ~ (Aceptado - Min_Surveys) * -1)
+#                 )
+
+
+
+## Tracking by Population Group: Migrantes en Transito
+
+transito_sample <- transito_sample_df_summarized %>% 
+  dplyr::select(departamento, Tamano_Muestra = sample_size)
+pendularios_sample
+
+
+transito_tracking <- dat %>% 
+  dplyr::filter(pop_group == "transito") %>% 
+  dplyr::group_by(departamento) %>% 
+  dplyr::summarise(Cargado = n(),
+                   Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T),
+                   Borrado = sum(delete == "yes", na.rm = T),
+                   Aceptado = sum(delete == "no", na.rm = T)
+  )
+transito_tracking
+
+
+transito_tracking_merged <- left_join(transito_sample, transito_tracking, by = "departamento") %>% 
+  mutate(
+    Restante =  case_when(
+      is.na(Aceptado) ~ Tamano_Muestra,
+      TRUE ~ as.integer((Aceptado - Tamano_Muestra) * -1)))
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_transito <- as.data.frame(lapply(transito_tracking_merged, func))
+sumrow_transito
+transito_tracking_merged <- rbind(transito_tracking_merged, sumrow_transito ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+# mutate_all(funs(replace_na(.,0))) #%>% 
+#   dplyr::mutate(Min_Surveys = round(Sample_Size*0.85,0)#,
+#                   #Min_Remaining =  case_when(is.na(Aceptado) ~ Min_Surveys,TRUE ~ (Aceptado - Min_Surveys) * -1)
+#                 )
+
+
+```
+```{r, include=FALSE}
+########################################################################################
+# Started before date of data collection
+started_before <- dat %>% 
+  dplyr::filter(date_assessment < assessment_start_date) %>% 
+  dplyr::select(Fecha = date_assessment,
+                Entrevistador = entrevistador,
+                Departamento = departamento)
+started_before
+
+# Entrevistador productivity
+
+Entrevistador_productivity <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::group_by(Fecha = date_assessment, Entrevistador = entrevistador) %>% 
+  dplyr::summarise(Encuestas = n())
+
+# Entrevistador_productivity_many <- Entrevistador_productivity %>% 
+#   dplyr::filter(Interviews > max_interv)
+# 
+# Entrevistador_productivity_less <- Entrevistador_productivity %>% 
+#   dplyr::filter(Interviews < 3)
+# 
+# Entrevistador_productivity_final <- rbind(Entrevistador_productivity_many, Entrevistador_productivity_less)%>% 
+#   dplyr::select(Entrevistador, Interviews) %>% 
+#   arrange(desc(Entrevistador))
+
+enum_productivity <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  group_by(Entrevistador = entrevistador) %>% 
+  dplyr::summarise(Encuestas = n()) %>% 
+  arrange(desc(Encuestas))
+
+
+# Entrevistador per survey status 
+
+enumer_per_survey_status <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::group_by(Fecha = date_assessment, Entrevistador = entrevistador) %>% 
+  dplyr::summarise(Aceptado = sum(time_validity != "Flagged", na.rm = T),
+            Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T )
+  )
+enumer_per_survey_status
+
+
+# Survey status per day 
+survey_status_per_day <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  group_by(Fecha = date_assessment) %>% 
+  dplyr::summarise(Aceptado = sum(time_validity != "Delete", na.rm = T),
+            Marcada_Tiempo = sum(time_validity == "Flagged" | time_validity == "Delete", na.rm = T )
+  )
+
+func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
+sumrow_total <- as.data.frame(lapply(survey_status_per_day, func))
+sumrow_total
+survey_status_per_day <- rbind(survey_status_per_day, sumrow_total ) %>% 
+  mutate_all(~replace(., is.na(.), 0))
+
+survey_status_per_day
+
+# survey_len <- dat %>% 
+#   filter(consent == "yes" & Entrevistador_num == "556") %>% 
+#   dplyr::select(audit_duration)
+# survey length by Entrevistador
+survey_length <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::group_by(Entrevistador = entrevistador) %>% 
+  dplyr::summarise(
+    Duracion_Media = round(median(as.numeric(duracion_min), na.rm = T),0)
+  )%>% 
+  dplyr::arrange(desc(Duracion_Media) )
+
+overall_survey_median <- round(median(as.numeric(dat$duracion_min), na.rm = T),0)
+
+survey_length$Mediana_Global <-  overall_survey_median
+
+
+# Entrevistador with short interv duration
+short_interviews_by_enum <- dat %>% 
+  dplyr::filter(estado == "finalizada__mobinet_") %>% 
+  dplyr::filter(duracion_min < flag_time_limit) %>% 
+  
+  dplyr::select(Fecha = date_assessment, 
+                Entrevistador = entrevistador, 
+                Departamento = departamento,
+                Duracion =  duracion_min,
+                Grupo_Poblacion = pop_group
+  ) %>% mutate(
+    Duracion = round(as.numeric(Duracion),0),
+  ) %>% 
+  arrange(desc(Fecha) )
+short_interviews_by_enum <- short_interviews_by_enum
+
+
+```
+
+
+<center> **Informe de Seguimiento de la Recolección de Datos** </center>
+
+
+# {.tabset}
+
+***
+## Progreso Recolección
+
+<center>**Número de encuestas por Dia** </center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+kable(survey_status_per_day)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
+```
+
+
+<center>**Encuestas Completadas**</center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+kable(interview_method_wide)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
+```
+
+***
+
+## Duración Encuestas
+
+ <center>**Mediana de la duración de la Entrevista por Encuestador** </center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+kable(survey_length)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
+```
+
+***
+***
+
+
+<center>**Encuestas recogidas en menos de `r flag_time_limit` minutos - últimos 7 días** </center> </br>
+  
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+DT::datatable(short_interviews_by_enum,
+              options = list(
+                  pageLength = 2000,
+                  dom = 'ft'
+                )
+  ) %>% 
+  DT::formatStyle('Duracion',  color = 'red', fontWeight = 'bold') %>% 
+  DT::formatStyle('Entrevistador',  color = 'black', fontWeight = 'bold')
+
+```
+
+
+##  Productividad Encuestadores
+
+<center>**Encuestadores con una Productividad Baja o Alta** </center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+kable(enum_productivity)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
+```
+
+
+## Progreso Encuestadores
+
+<center>**Número de Encuestas por Día por Encuestador** </center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+DT::datatable(enumer_per_survey_status,
+              options = list(
+                  pageLength = 2000,
+                  dom = 'ft'
+                )
+  ) %>% 
+  DT::formatStyle('Marcada_Tiempo',  color = 'red', fontWeight = 'bold') %>% 
+  DT::formatStyle('Aceptado',  color = 'green', fontWeight = 'bold')
+
+```
+
+
+## Comunidad de Acogida
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+DT::datatable(acogida_tracking_merged,
+              options = list(
+                  pageLength = 130,
+                  dom = 'ft'
+                )
+              ) %>% 
+  DT::formatStyle('Borrado',  color = 'red', fontWeight = 'bold') %>% 
+  DT::formatStyle('Aceptado',  color = 'green', fontWeight = 'bold') %>% 
+  DT::formatStyle('Marcada_Tiempo',  color = 'red', fontWeight = 'bold') %>%
+  #DT::formatStyle('Min_Remaining',  color = 'blue', fontWeight = 'bold') %>% 
+  DT::formatStyle('Restante', fontWeight = 'bold')
+```
+
+
+## Migrantes Vocación de Permanencia
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+DT::datatable(permanencia_tracking_merged,
+              options = list(
+                  pageLength = 130,
+                  dom = 'ft'
+                )
+              ) %>% 
+  DT::formatStyle('Borrado',  color = 'red', fontWeight = 'bold') %>% 
+  DT::formatStyle('Aceptado',  color = 'green', fontWeight = 'bold') %>% 
+  DT::formatStyle('Marcada_Tiempo',  color = 'red', fontWeight = 'bold') %>%
+  #DT::formatStyle('Min_Remaining',  color = 'blue', fontWeight = 'bold') %>% 
+  DT::formatStyle('Restante', fontWeight = 'bold')
+```
+
+
+
+## Retornados Colombianos
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+DT::datatable(retornados_tracking_merged,
+              options = list(
+                  pageLength = 130,
+                  dom = 'ft'
+                )
+              ) %>% 
+  DT::formatStyle('Borrado',  color = 'red', fontWeight = 'bold') %>% 
+  DT::formatStyle('Aceptado',  color = 'green', fontWeight = 'bold') %>% 
+  DT::formatStyle('Marcada_Tiempo',  color = 'red', fontWeight = 'bold') %>%
+  DT::formatStyle('Restante', fontWeight = 'bold')
+```
+
+
+## Pendularios
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+DT::datatable(pendularios_tracking_merged,
+              options = list(
+                  pageLength = 130,
+                  dom = 'ft'
+                )
+              ) %>% 
+  DT::formatStyle('Borrado',  color = 'red', fontWeight = 'bold') %>% 
+  DT::formatStyle('Aceptado',  color = 'green', fontWeight = 'bold') %>% 
+  DT::formatStyle('Marcada_Tiempo',  color = 'red', fontWeight = 'bold') %>%
+  DT::formatStyle('Restante', fontWeight = 'bold')
+```
+
+
+## Migrantes Transito
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+DT::datatable(transito_tracking_merged,
+              options = list(
+                  pageLength = 130,
+                  dom = 'ft'
+                )
+              ) %>% 
+  DT::formatStyle('Borrado',  color = 'red', fontWeight = 'bold') %>% 
+  DT::formatStyle('Aceptado',  color = 'green', fontWeight = 'bold') %>% 
+  DT::formatStyle('Marcada_Tiempo',  color = 'red', fontWeight = 'bold') %>%
+  DT::formatStyle('Restante', fontWeight = 'bold')
+```
