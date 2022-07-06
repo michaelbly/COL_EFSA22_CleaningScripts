@@ -186,6 +186,24 @@ df$average_consumption <- (df$fcs_azucares + df$fcs_carne + df$fcs_cereales + df
   df$fcs_frutas + df$fcs_leche + df$fcs_vegetales) / 8
 
 
+## strip dataset of all PII
+df <- df[, -c(13:60)] # delete columns 5 through 7
+
+df[ ,c("nombre_respondiente", "ind1_nombre", "ind2_nombre", "ind3_nombre", 
+       "ind4_nombre", "ind5_nombre", "ind6_nombre", "ind7_nombre", "ind8_nombre", 
+       "ind9_nombre", "ind10_nombre", "ind11_nombre", "ind12_nombre", "ind13_nombre", 
+       "ind14_nombre", "ind15_nombre", "ind16_nombre", "ind17_nombre",
+       "ind18_nombre", "ind19_nombre")] <- list(NULL)
+
+
+## strip dataset of all PII
+df[ ,c(13:60, "nombre_respondiente", "ind1_nombre", "ind2_nombre", "ind3_nombre", 
+       "ind4_nombre", "ind5_nombre", "ind6_nombre", "ind7_nombre", "ind8_nombre", 
+       "ind9_nombre", "ind10_nombre", "ind11_nombre", "ind12_nombre", "ind13_nombre", 
+       "ind14_nombre", "ind15_nombre", "ind16_nombre", "ind17_nombre",
+       "ind18_nombre", "ind19_nombre")] <- list(NULL)
+
+
 
 ##########################################################################################################
 ### EXPORT FOR DATA CHECKING #############

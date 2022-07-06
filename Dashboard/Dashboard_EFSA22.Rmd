@@ -33,7 +33,11 @@ library(rsconnect)
 library(leaflet)
 library(htmlwidgets)
 library(stringr)
+library(stringi)
 options(dplyr.summarise.inform = FALSE)
+
+WGS84 <- raster::crs("+init=epsg:4326")
+UTM38N <- raster::crs("+init=epsg:32638")
 
 assessment_start_date <- as.Date("2022-07-04")
 
@@ -45,6 +49,37 @@ flag_time_limit <- 40
 
 dat <- read.csv("Input/efsa_all_data_2022-07-04.csv",
                stringsAsFactors = TRUE)
+
+
+########## LOAD SHAPE FILES ########################
+adm <- st_read("Input/shapefiles_unzipped/col_admbnda_adm1_mgn_20200416.shp") %>% 
+  st_transform(crs = 4326)
+
+dat <- read.csv("Input/efsa_all_data_2022-07-04.csv",
+                stringsAsFactors = TRUE)
+
+# change accented letters in department names
+accented_letters <- function (x){
+  stri_replace_all_fixed(x,
+                         c("á","é","ń","í","ó","ú","ñ","ü","Á","Ó","Í","Ñ"),
+                         c("a","e","n","i","o","u","n","u","A","O","I","N"),
+                         vectorize_all = FALSE)
+}
+
+adm$ADM1_ES <- accented_letters(adm$ADM1_ES)
+
+#############################
+# set string to lower case and replace everything that is not alphanumeric or underscore by a dot "."
+to_alphanumeric_lowercase <- function (x)
+{
+  tolower(gsub("[^a-zA-Z0-9_]", "\\_", x))
+}
+
+adm$ADM1_ES <- to_alphanumeric_lowercase(adm$ADM1_ES)
+adm$ADM1_ES
+names(adm)[names(adm) == "ADM1_ES"] <- "departamento"
+adm$departamento[adm$departamento == "bogota__d_c_"] <- "bogota_dc"
+
 
 
 ########## SAMPLE FRAMES ########################
@@ -592,15 +627,51 @@ short_interviews_by_enum <- dat %>%
 short_interviews_by_enum <- short_interviews_by_enum
 
 
-```
+# merge shape file with final output
+df_list <- list(acogida_tracking_merged, 
+                permanencia_tracking_merged, retornados_tracking_merged,
+                transito_tracking_merged, pendularios_tracking_merged)
 
+# merge all data frames in list
+library(data.table)
+overall_merged <- rbindlist(list(acogida_tracking_merged, 
+               permanencia_tracking_merged, retornados_tracking_merged,
+               transito_tracking_merged, pendularios_tracking_merged), fill = TRUE)[,lapply(.SD, sum, na.rm = TRUE) , departamento]
+# join shapes with tracking table
+df.map <- left_join(adm, overall_merged, by="departamento") %>%
+  mutate(pct.done=pmin(Aceptado/Tamano_Muestra*100, 100))
+
+```
 
 <center> **Informe de Seguimiento de la Recolección de Datos** </center>
 
 
 # {.tabset}
-
 ***
+## Mapa
+
+<center>**Mapa porcentaje de encuestas completadas (todos los grupos de población combinados) por departamento** </center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis', fig.width=9, fig.height=7}
+## Interviews Tracking (Map)
+# generate map
+pal.strata <- colorNumeric(c("red", "yellow", "green"), 0:100)
+leaflet(options = leafletOptions(zoomControl = FALSE,
+                                 minZoom = 5.7, maxZoom = 5.7, dragging = FALSE, width = "100%")) %>%
+  addPolygons(data=df.map, color = "black", weight = 0.5, opacity = 1, fill = F, fillOpacity = 0, 
+              smoothFactor = 0, stroke = TRUE) %>%
+  addPolygons(data=df.map, color = ~pal.strata(df.map$pct.done),
+              weight = 1, opacity = 0.5, fill = T, fillOpacity = 0.7,
+              label=paste0(df.map$departamento, ": ", round(df.map$pct.done,  1), "% completado (",
+                           df.map$Restante, " restante)")) %>%
+  addTiles() %>%
+  addMeasure(primaryLengthUnit = "kilometers") %>% 
+  addProviderTiles("Esri.WorldGrayCanvas")
+
+```
+
+
+
 ## Progreso Recolección
 
 <center>**Número de encuestas por Dia** </center> </br>
