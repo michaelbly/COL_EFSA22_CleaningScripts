@@ -17,6 +17,7 @@ library(rsconnect)
 library(htmlwidgets)
 
 source("functions/function_handler.R")
+source("functions/loop_generator.R")
 
 assessment_start_date <- as.Date("2022-07-12")
 
@@ -184,6 +185,11 @@ df$average_consumption <- (df$fcs_azucares + df$fcs_carne + df$fcs_cereales + df
   df$fcs_frutas + df$fcs_leche + df$fcs_vegetales) / 8
 
 
+# generate loop separately and remove individual data from household dataset
+loop <- loop_generator(df)
+
+
+
 ## strip dataset of all PII
 #df <- df[, -c(13:60)] # delete columns 5 through 7
 
@@ -224,11 +230,9 @@ logs$log_number = seq.int(nrow(logs))
 # order data frame by log_number
 ordered_df <- logs[order(logs$log_number),]
 readr::write_excel_csv(ordered_df, sprintf("Output/cleaning_log/cleaning_log_%s.csv",today()))
-readr::write_excel_csv(ordered_df, sprintf("Dashboard/Input/cleaning_log.csv")
+readr::write_excel_csv(ordered_df, sprintf("Dashboard/Input/cleaning_log.csv"))
 
 
-# export data with check columns
-#logs_as_columns <- read_conditions_from_excel_column(df, conditionDf_1);
-#write.csv(logs_as_columns, sprintf("output/cleaning_log/data_w_checks/data_checks_%s.csv",today()), row.names = FALSE)
-
-
+# export data in one single datasdet with household and loop data in separate sheets
+xl_lst <- list('hogar' = df, 'individual' = loop)
+write.xlsx(xl_lst, file = sprintf("output/data_checking/efsa_all_data_%s.xlsx",today()))
