@@ -18,15 +18,15 @@ library(htmlwidgets)
 
 source("functions/function_handler.R")
 
-assessment_start_date <- as.Date("2022-07-04")
+assessment_start_date <- as.Date("2022-07-12")
 
-delete_time_limit <- 30
-flag_time_limit <- 40
+delete_time_limit <- 20
+flag_time_limit <- 35
 
 
 # read data from excel file
 #df <- read_excel("input/raw_data/raw_dataset_efsa22_240622.xlsx")
-df <- read.csv("input/raw_data/raw_dataset_efsa22_040722.csv", sep = ";"
+df <- read.csv("input/raw_data/raw_dataset_efsa22_120722.csv", sep = ";"
                , comment.char = "", strip.white = TRUE,
                stringsAsFactors = TRUE, fileEncoding="UTF-8")
 
@@ -49,16 +49,14 @@ change_names$new_name %find those not in% names(df)
 
 ############################
 # replace accented letters with regular ones
-accented_letters <- function (x)
-{
+accented_letters <- function (x){
   stri_replace_all_fixed(x,
                          c("á","é","ń","í","ó","ú","ñ","ü","Á","Ó","Í","Ñ"),
                          c("a","e","n","i","o","u","n","u","A","O","I","N"),
-                         vectorize_all = FALSE)
-}
+                         vectorize_all = FALSE)}
 
 df <- rapply(df, f = accented_letters, classes = c("factor"), how = "replace")
-
+df <- rapply(df, f = accented_letters, classes = c("factor"), how = "replace")
 
 
 
@@ -133,7 +131,7 @@ df$not_eligible
 
 ####################################
 # change date format
-df$date_assessment <- strptime(as.character(df$fecha_in), "%d_%m_%Y")
+df$date_assessment <- strptime(as.character(df$fecha_in), "%Y_%m_%d")
 df$date_assessment <-  format(df$date, "%Y-%m-%d")
 
 
@@ -187,22 +185,13 @@ df$average_consumption <- (df$fcs_azucares + df$fcs_carne + df$fcs_cereales + df
 
 
 ## strip dataset of all PII
-df <- df[, -c(13:60)] # delete columns 5 through 7
+#df <- df[, -c(13:60)] # delete columns 5 through 7
 
-df[ ,c("nombre_respondiente", "ind1_nombre", "ind2_nombre", "ind3_nombre", 
-       "ind4_nombre", "ind5_nombre", "ind6_nombre", "ind7_nombre", "ind8_nombre", 
-       "ind9_nombre", "ind10_nombre", "ind11_nombre", "ind12_nombre", "ind13_nombre", 
-       "ind14_nombre", "ind15_nombre", "ind16_nombre", "ind17_nombre",
-       "ind18_nombre", "ind19_nombre")] <- list(NULL)
-
-
-## strip dataset of all PII
-df[ ,c(13:60, "nombre_respondiente", "ind1_nombre", "ind2_nombre", "ind3_nombre", 
-       "ind4_nombre", "ind5_nombre", "ind6_nombre", "ind7_nombre", "ind8_nombre", 
-       "ind9_nombre", "ind10_nombre", "ind11_nombre", "ind12_nombre", "ind13_nombre", 
-       "ind14_nombre", "ind15_nombre", "ind16_nombre", "ind17_nombre",
-       "ind18_nombre", "ind19_nombre")] <- list(NULL)
-
+#df[ ,c("nombre_respondiente", "ind1_nombre", "ind2_nombre", "ind3_nombre", 
+#       "ind4_nombre", "ind5_nombre", "ind6_nombre", "ind7_nombre", "ind8_nombre", 
+#       "ind9_nombre", "ind10_nombre", "ind11_nombre", "ind12_nombre", "ind13_nombre", 
+#       "ind14_nombre", "ind15_nombre", "ind16_nombre", "ind17_nombre",
+#       "ind18_nombre", "ind19_nombre")] <- list(NULL)
 
 
 ##########################################################################################################
@@ -235,8 +224,11 @@ logs$log_number = seq.int(nrow(logs))
 # order data frame by log_number
 ordered_df <- logs[order(logs$log_number),]
 readr::write_excel_csv(ordered_df, sprintf("Output/cleaning_log/cleaning_log_%s.csv",today()))
+readr::write_excel_csv(ordered_df, sprintf("Dashboard/Input/cleaning_log.csv")
 
 
 # export data with check columns
 #logs_as_columns <- read_conditions_from_excel_column(df, conditionDf_1);
 #write.csv(logs_as_columns, sprintf("output/cleaning_log/data_w_checks/data_checks_%s.csv",today()), row.names = FALSE)
+
+

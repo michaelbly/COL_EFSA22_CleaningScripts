@@ -1,5 +1,5 @@
 ---
-title: 'WFP-CNC EFSA22: Recogida de Datos - 04/07/2022 10:00'
+title: 'WFP-CNC EFSA22: Recogida de Datos - 11/07/2022 09:00'
 output:
 always_allow_html: true
 html_document: default
@@ -25,6 +25,7 @@ library(readxl)
 library(kableExtra)
 library(knitr)
 library(readr)
+library(htmltools)
 library(openxlsx)
 library(sf)
 library(raster)
@@ -39,15 +40,15 @@ options(dplyr.summarise.inform = FALSE)
 WGS84 <- raster::crs("+init=epsg:4326")
 UTM38N <- raster::crs("+init=epsg:32638")
 
-assessment_start_date <- as.Date("2022-07-04")
+assessment_start_date <- as.Date("2022-07-12")
 
 ##### set min time and max # interviews per day
 
-delete_time_limit <- 30
-flag_time_limit <- 40
+delete_time_limit <- 20
+flag_time_limit <- 35
 
 
-dat <- read.csv("Input/efsa_all_data_2022-07-04.csv",
+dat <- read.csv("Input/efsa_all_data_2022-07-12.csv",
                stringsAsFactors = TRUE)
 
 
@@ -55,8 +56,6 @@ dat <- read.csv("Input/efsa_all_data_2022-07-04.csv",
 adm <- st_read("Input/shapefiles_unzipped/col_admbnda_adm1_mgn_20200416.shp") %>% 
   st_transform(crs = 4326)
 
-dat <- read.csv("Input/efsa_all_data_2022-07-04.csv",
-                stringsAsFactors = TRUE)
 
 # change accented letters in department names
 accented_letters <- function (x){
@@ -610,6 +609,15 @@ overall_survey_median <- round(median(as.numeric(dat$duracion_min), na.rm = T),0
 survey_length$Mediana_Global <-  overall_survey_median
 
 
+
+# median interview duration by day
+duration_by_day <- dat%>%
+  group_by(date_assessment)%>% 
+  summarise(Mean=mean(duracion_min), Max=max(duracion_min), Min=min(duracion_min), Median=median(duracion_min), Std=sd(duracion_min))
+
+
+
+
 # Entrevistador with short interv duration
 short_interviews_by_enum <- dat %>% 
   dplyr::filter(estado == "finalizada__mobinet_") %>% 
@@ -641,7 +649,33 @@ overall_merged <- rbindlist(list(acogida_tracking_merged,
 df.map <- left_join(adm, overall_merged, by="departamento") %>%
   mutate(pct.done=pmin(Aceptado/Tamano_Muestra*100, 100))
 
+
+# merge all enumerator related indicators into one table
+# number of inconsistencies by enumerator
+cleaning_log <- read.csv("Input/cleaning_log.csv",
+               stringsAsFactors = TRUE)
+incoherences <- data.frame(table(cleaning_log$entrevistador))
+names(incoherences) <- c("entrevistador", "nr_inhoherencias")
+
+# median interview duration by enumerator
+duration_enumerator <- dat%>%
+  group_by(entrevistador)%>% 
+  summarise(duracion_mediana=median(duracion_min))
+
+# number of flagged surveys per enumerator
+dat$time_flagged <- ifelse(dat$time_validity == "Flagged",1,NA)
+flagged_surveys_enumerator <- data.frame(table(dat$time_flagged, dat$entrevistador))
+flagged_surveys_enumerator[,1] <- NULL
+names(flagged_surveys_enumerator) <- c("entrevistador", "nr_marcada_tiempo")
+
+full_entrevistador <- left_join(incoherences, duration_enumerator, by='entrevistador') %>%
+                left_join(., flagged_surveys_enumerator, by='entrevistador', all.x = T) 
+full_entrevistador <- full_entrevistador[order(full_entrevistador$nr_marcada_tiempo),]
+
+
 ```
+
+
 
 <center> **Informe de Seguimiento de la Recolección de Datos** </center>
 
@@ -650,23 +684,48 @@ df.map <- left_join(adm, overall_merged, by="departamento") %>%
 ***
 ## Mapa
 
-<center>**Mapa porcentaje de encuestas completadas (todos los grupos de población combinados) por departamento** </center> </br>
+<center>**Porcentaje de encuestas completadas (todos los grupos de población combinados) por departamento** </center> </br>
 
 ```{r eval=TRUE, echo=FALSE, results='asis', fig.width=9, fig.height=7}
 ## Interviews Tracking (Map)
 # generate map
 pal.strata <- colorNumeric(c("red", "yellow", "green"), 0:100)
+
+labels <- paste(
+  "<strong>", df.map$departamento,
+  "</strong><br>% Completado:", round(df.map$pct.done,  1),
+  "</strong><br># Restante:", df.map$Restante, 
+  "</strong><br># Marcada Tiempo:", df.map$Marcada_Tiempo) %>%
+  lapply(htmltools::HTML)
+
 leaflet(options = leafletOptions(zoomControl = FALSE,
                                  minZoom = 5.7, maxZoom = 5.7, dragging = FALSE, width = "100%")) %>%
   addPolygons(data=df.map, color = "black", weight = 0.5, opacity = 1, fill = F, fillOpacity = 0, 
               smoothFactor = 0, stroke = TRUE) %>%
   addPolygons(data=df.map, color = ~pal.strata(df.map$pct.done),
               weight = 1, opacity = 0.5, fill = T, fillOpacity = 0.7,
-              label=paste0(df.map$departamento, ": ", round(df.map$pct.done,  1), "% completado (",
-                           df.map$Restante, " restante)")) %>%
+              label=labels) %>%
   addTiles() %>%
   addMeasure(primaryLengthUnit = "kilometers") %>% 
   addProviderTiles("Esri.WorldGrayCanvas")
+
+```
+
+## Controles Encuestador
+
+<center>**Número de encuestas con incoherencias, número de encuestas inferiores a `r flag_time_limit` minutos y duración media de la entrevista por encuestador** </center> </br>
+
+</center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+DT::datatable(full_entrevistador,
+              options = list(
+                  pageLength = 2000,
+                  dom = 'ft'
+                )
+  ) %>% 
+  DT::formatStyle('nr_marcada_tiempo', fontWeight = 'bold')
 
 ```
 
@@ -693,18 +752,6 @@ kable(interview_method_wide)%>%
 ***
 
 ## Duración Encuestas
-
- <center>**Mediana de la duración de la Entrevista por Encuestador** </center> </br>
-
-```{r eval=TRUE, echo=FALSE, results='asis'}
-kable(survey_length)%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
-```
-
-***
-***
-
-
 <center>**Encuestas recogidas en menos de `r flag_time_limit` minutos - últimos 7 días** </center> </br>
   
 
@@ -720,6 +767,27 @@ DT::datatable(short_interviews_by_enum,
   DT::formatStyle('Entrevistador',  color = 'black', fontWeight = 'bold')
 
 ```
+***
+***
+
+
+ <center>**Mediana de la duración de la Entrevista por Encuestador** </center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+kable(survey_length)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
+```
+
+***
+***
+
+ <center>**Mediana de la duración de la Entrevista por dia** </center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+kable(duration_by_day)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
+```
+
 
 
 ##  Productividad Encuestadores
