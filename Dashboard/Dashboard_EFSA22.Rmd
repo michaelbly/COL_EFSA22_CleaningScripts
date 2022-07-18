@@ -1,5 +1,5 @@
 ---
-title: 'WFP-CNC EFSA22: Recogida de Datos - 12/07/2022 09:30'
+title: 'WFP-CNC EFSA22: Recogida de Datos - 18/07/2022 10:30'
 output:
 always_allow_html: true
 html_document: default
@@ -27,7 +27,9 @@ library(knitr)
 library(readr)
 library(htmltools)
 library(openxlsx)
+library(janitor)
 library(sf)
+library(DT)
 library(raster)
 library(Hmisc)
 library(rsconnect)
@@ -35,12 +37,15 @@ library(leaflet)
 library(htmlwidgets)
 library(stringr)
 library(stringi)
+```
+```{r, include=FALSE}
+
 options(dplyr.summarise.inform = FALSE)
 
 WGS84 <- raster::crs("+init=epsg:4326")
 UTM38N <- raster::crs("+init=epsg:32638")
 
-assessment_start_date <- as.Date("2022-07-12")
+assessment_start_date <- as.Date("2022-07-18")
 
 ##### set min time and max # interviews per day
 
@@ -48,9 +53,11 @@ delete_time_limit <- 20
 flag_time_limit <- 35
 
 
-dat <- read.csv("Input/efsa_all_data_2022-07-12.csv",
+dat <- read.csv("Input/efsa_all_data_2022-07-18.csv",
                stringsAsFactors = TRUE)
 
+n_dat <- read.csv("Input/nutritional_data/nutritional_data_2022-07-18.csv",
+               stringsAsFactors = TRUE)
 
 ########## LOAD SHAPE FILES ########################
 adm <- st_read("Input/shapefiles_unzipped/col_admbnda_adm1_mgn_20200416.shp") %>% 
@@ -275,7 +282,7 @@ interview_method_wide_retornado
 
 ### Interview method Pendularios
 interview_method_pendulario <- dat %>%
-  dplyr::filter(pop_group == "pendulario") %>% 
+  dplyr::filter(pop_group == "pendular") %>% 
   dplyr::select(Fecha = date_assessment,
                 Entrevistador = entrevistador,
                 Departamento = departamento,
@@ -286,7 +293,7 @@ interview_method_pendulario <- dat %>%
 interview_method_pendulario
 
 interview_method_date_pendulario <- dat %>% 
-  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "pendulario") %>% 
+  dplyr::filter(date_assessment >= assessment_start_date & pop_group == "pendular") %>% 
   dplyr::select(Fecha = date_assessment,
                 Entrevistador = entrevistador,
                 Departamento = departamento,
@@ -469,7 +476,7 @@ pendularios_sample
 
 
 pendularios_tracking <- dat %>% 
-  dplyr::filter(pop_group == "pendularios") %>% 
+  dplyr::filter(pop_group == "pendular") %>% 
   dplyr::group_by(departamento) %>% 
   dplyr::summarise(Cargado = n(),
                    Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T),
@@ -533,14 +540,6 @@ transito_tracking_merged <- rbind(transito_tracking_merged, sumrow_transito ) %>
 ```
 ```{r, include=FALSE}
 ########################################################################################
-# Started before date of data collection
-started_before <- dat %>% 
-  dplyr::filter(date_assessment < assessment_start_date) %>% 
-  dplyr::select(Fecha = date_assessment,
-                Entrevistador = entrevistador,
-                Departamento = departamento)
-started_before
-
 # Entrevistador productivity
 
 Entrevistador_productivity <- dat %>% 
@@ -574,6 +573,42 @@ enumer_per_survey_status <- dat %>%
             Marcada_Tiempo = sum(time_validity == "Flagged", na.rm = T )
   )
 enumer_per_survey_status
+
+
+###############
+# tracking nutritional data
+
+antro_total <- dat %>% 
+  dplyr::summarise(Cargado_Total = n(),
+                   Mayores_65 = sum(presencia_65 == "si", na.rm = T),
+                   Ninos_0_59 = sum(presencia_0_59_meses == "si", na.rm = T),
+                   Gestantes = sum(presencia_embarazo == "si", na.rm = T)) 
+antro_total <- as.data.frame(t(antro_total))
+antro_total <- tibble::rownames_to_column(antro_total, "Grupo")
+names(antro_total)[names(antro_total) == 'V1'] <- "Total_actual"
+
+
+#popgroup_registro <- dat %>% select(registro, pop_group)
+#gaggi <- merge(popgroup_registro, n_dat, by.y = "registro", all.y = T)
+
+
+antro_submitted <- n_dat %>% 
+  dplyr::summarise(Cargado_Total = n(),
+                   Mayores_65 = sum(presencia_mayores65 == 1, na.rm = T),
+                   Ninos_0_59 = sum(presencia_ninos_0_59 == 1, na.rm = T),
+                   Gestantes = sum(presencia_gestantes == 1, na.rm = T)) 
+antro_submitted <- as.data.frame(t(antro_submitted))
+
+antro_submitted <- tibble::rownames_to_column(antro_submitted, "Grupo")
+names(antro_submitted)[names(antro_submitted) == 'V1'] <- "Cargado"
+
+
+summary_antropometric <- left_join(antro_total, antro_submitted)
+
+
+summary_antropometric$Porc_Cargado <- paste0(round(100*(summary_antropometric$Cargado /
+                                                    summary_antropometric$Total_actual),0),"%")
+
 
 
 # Survey status per day 
@@ -748,6 +783,22 @@ kable(survey_status_per_day)%>%
 kable(interview_method_wide)%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
 ```
+
+<center>**Medidas Antropométricas**</center> </br>
+
+```{r eval=TRUE, echo=FALSE, results='asis'}
+
+DT::datatable(summary_antropometric,
+              options = list(
+                  pageLength = 2000,
+                  dom = 'ft'
+                )
+  ) %>% 
+  DT::formatStyle('Porc_Cargado',  color = 'red', fontWeight = 'bold', 'text-align' = 'center')
+
+```
+
+
 
 ***
 

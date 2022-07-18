@@ -19,7 +19,7 @@ library(htmlwidgets)
 source("functions/function_handler.R")
 source("functions/loop_generator.R")
 
-assessment_start_date <- as.Date("2022-07-12")
+assessment_start_date <- as.Date("2022-07-18")
 
 delete_time_limit <- 20
 flag_time_limit <- 35
@@ -27,7 +27,7 @@ flag_time_limit <- 35
 
 # read data from excel file
 #df <- read_excel("input/raw_data/raw_dataset_efsa22_240622.xlsx")
-df <- read.csv("input/raw_data/raw_dataset_efsa22_120722.csv", sep = ";"
+df <- read.csv("input/raw_data/raw_dataset_efsa22_180722.csv", sep = ";"
                , comment.char = "", strip.white = TRUE,
                stringsAsFactors = TRUE, fileEncoding="UTF-8")
 
@@ -132,7 +132,7 @@ df$not_eligible
 
 ####################################
 # change date format
-df$date_assessment <- strptime(as.character(df$fecha_in), "%Y_%m_%d")
+df$date_assessment <- strptime(as.character(df$fecha_in), "%d_%m_%Y")
 df$date_assessment <-  format(df$date, "%Y-%m-%d")
 
 
@@ -217,7 +217,7 @@ write.csv(df, sprintf("Dashboard/Input/efsa_all_data_%s.csv",today()), row.names
 ###########################################################################################################
 # DO CLEANING
 # read cleaning conditions csv list
-conditionDf_1 <- read.csv("input/conditions/v1_conditions_log.csv", as.is = TRUE, sep = ";")
+conditionDf_1 <- read.csv("input/conditions/v2_conditions_log.csv", as.is = TRUE, sep = ";")
 
 #debug(read_conditions_from_excel_limited_row)
 
@@ -236,3 +236,7 @@ readr::write_excel_csv(ordered_df, sprintf("Dashboard/Input/cleaning_log.csv"))
 # export data in one single datasdet with household and loop data in separate sheets
 xl_lst <- list('hogar' = df, 'individual' = loop)
 write.xlsx(xl_lst, file = sprintf("output/data_checking/efsa_all_data_%s.xlsx",today()))
+
+
+# import nutritional dataset
+source("import_nutritional.R")
