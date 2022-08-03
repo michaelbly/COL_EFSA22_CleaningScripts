@@ -1,5 +1,5 @@
 ---
-title: 'WFP-CNC EFSA22: Recogida de Datos - 18/07/2022 10:30'
+title: 'WFP-CNC EFSA22: Recogida de Datos - 01/08/2022 11:00'
 output:
 always_allow_html: true
 html_document: default
@@ -45,7 +45,7 @@ options(dplyr.summarise.inform = FALSE)
 WGS84 <- raster::crs("+init=epsg:4326")
 UTM38N <- raster::crs("+init=epsg:32638")
 
-assessment_start_date <- as.Date("2022-07-18")
+assessment_start_date <- as.Date("2022-08-01")
 
 ##### set min time and max # interviews per day
 
@@ -53,10 +53,10 @@ delete_time_limit <- 20
 flag_time_limit <- 35
 
 
-dat <- read.csv("Input/efsa_all_data_2022-07-18.csv",
+dat <- read.csv("Input/efsa_all_data_2022-08-01.csv",
                stringsAsFactors = TRUE)
 
-n_dat <- read.csv("Input/nutritional_data/nutritional_data_2022-07-18.csv",
+n_dat <- read.csv("Input/nutritional_data/nutritional_data_2022-08-01.csv",
                stringsAsFactors = TRUE)
 
 ########## LOAD SHAPE FILES ########################
@@ -577,7 +577,6 @@ enumer_per_survey_status
 
 ###############
 # tracking nutritional data
-
 antro_total <- dat %>% 
   dplyr::summarise(Cargado_Total = n(),
                    Mayores_65 = sum(presencia_65 == "si", na.rm = T),
@@ -608,6 +607,67 @@ summary_antropometric <- left_join(antro_total, antro_submitted)
 
 summary_antropometric$Porc_Cargado <- paste0(round(100*(summary_antropometric$Cargado /
                                                     summary_antropometric$Total_actual),0),"%")
+
+
+#antropometric data by population group
+registro_hh <- dplyr::select(dat, registro, pop_group)
+n_dat <- merge(registro_hh, n_dat, by="registro", all.y = T)
+
+antro_by_popgroup <- n_dat %>% group_by(pop_group) %>% 
+  dplyr::summarise(Cargado_Total = n(),
+                   Mayores_65 = sum(presencia_mayores65 == 1, na.rm = T),
+                   Ninos_0_59 = sum(presencia_ninos_0_59 == 1, na.rm = T),
+                   Gestantes = sum(presencia_gestantes == 1, na.rm = T)) 
+
+
+
+# percentage uploaded antropometric data by population group
+porc_antro_by_popgroup <- n_dat %>% group_by(pop_group) %>% 
+  dplyr::summarise(Cargado_Total = n(),
+                   Mayores_65 = sum(presencia_mayores65 == 1, na.rm = T),
+                   Ninos_0_59 = sum(presencia_ninos_0_59 == 1, na.rm = T),
+                   Gestantes = sum(presencia_gestantes == 1, na.rm = T)) 
+names(porc_antro_by_popgroup)
+colnames(porc_antro_by_popgroup) <- c("pop_group", "Cargado_Total_recogido", "Mayores_65_recogido", "Ninos_0_59_recogido", "Gestantes_recogido")
+
+
+
+porc_antro_total_pop <- dat %>% group_by(pop_group) %>% 
+  dplyr::summarise(Cargado_Total = n(),
+                   Mayores_65 = sum(presencia_65 == "si", na.rm = T),
+                   Ninos_0_59 = sum(presencia_0_59_meses == "si", na.rm = T),
+                   Gestantes = sum(presencia_embarazo == "si", na.rm = T)) 
+names(porc_antro_total_pop)
+colnames(porc_antro_total_pop) <- c("pop_group", "Cargado_Total_muestra", "Mayores_65_muestra", "Ninos_0_59_muestra", "Gestantes_muestra")
+
+
+
+porc_summary_antropometric <- left_join(porc_antro_total_pop, porc_antro_by_popgroup, by = "pop_group")
+
+
+porc_summary_antropometric$Cargado_Total <- paste0(round(100*(porc_summary_antropometric$Cargado_Total_recogido /
+                                                                porc_summary_antropometric$Cargado_Total_muestra),0),"%")
+
+porc_summary_antropometric$Mayores_65 <- paste0(round(100*(porc_summary_antropometric$Mayores_65_recogido /
+                                                        porc_summary_antropometric$Mayores_65_muestra),0),"%")
+
+porc_summary_antropometric$Ninos_0_59 <- paste0(round(100*(porc_summary_antropometric$Ninos_0_59_recogido /
+                                                             porc_summary_antropometric$Ninos_0_59_muestra),0),"%")
+
+porc_summary_antropometric$Gestantes <- paste0(round(100*(porc_summary_antropometric$Gestantes_recogido /
+                                                       porc_summary_antropometric$Gestantes_muestra),0),"%")
+
+
+porc_summary_antropometric$Mayores_65_957 <- paste0(round(100*(porc_summary_antropometric$Mayores_65_recogido /
+                                                            196),0),"%")
+porc_summary_antropometric$Ninos_0_59_957 <- paste0(round(100*(porc_summary_antropometric$Ninos_0_59_recogido /
+                                                            196),0),"%")
+porc_summary_antropometric$Gestantes_957 <- paste0(round(100*(porc_summary_antropometric$Gestantes_recogido /
+                                                            196),0),"%")
+
+porc_summary_antropometric <- porc_summary_antropometric[,c("pop_group", "Cargado_Total", "Mayores_65", "Ninos_0_59", "Gestantes", 
+                                                  "Mayores_65_957", "Ninos_0_59_957", "Gestantes_957")]
+
 
 
 
@@ -784,17 +844,26 @@ kable(interview_method_wide)%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
 ```
 
+
+
 <center>**Medidas Antropométricas**</center> </br>
 
 ```{r eval=TRUE, echo=FALSE, results='asis'}
 
-DT::datatable(summary_antropometric,
+DT::datatable(porc_summary_antropometric,
               options = list(
                   pageLength = 2000,
                   dom = 'ft'
                 )
   ) %>% 
-  DT::formatStyle('Porc_Cargado',  color = 'red', fontWeight = 'bold', 'text-align' = 'center')
+  DT::formatStyle('Mayores_65_957',  color = 'red', fontWeight = 'bold', 'text-align' = 'center')  %>% 
+  DT::formatStyle('Ninos_0_59_957',  color = 'red', fontWeight = 'bold', 'text-align' = 'center')  %>%
+  DT::formatStyle('Gestantes_957',  color = 'red', fontWeight = 'bold', 'text-align' = 'center')
+
+
+kable(antro_by_popgroup)%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),fixed_thead = T, full_width = F)
+
 
 ```
 
