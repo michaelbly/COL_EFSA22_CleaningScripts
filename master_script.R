@@ -19,7 +19,7 @@ library(htmlwidgets)
 source("functions/function_handler.R")
 source("functions/loop_generator.R")
 
-assessment_start_date <- as.Date("2022-07-18")
+assessment_start_date <- as.Date("2022-08-01")
 
 delete_time_limit <- 20
 flag_time_limit <- 35
@@ -27,15 +27,17 @@ flag_time_limit <- 35
 
 # read data from excel file
 #df <- read_excel("input/raw_data/raw_dataset_efsa22_240622.xlsx")
-df <- read.csv("input/raw_data/raw_dataset_efsa22_180722.csv", sep = ";"
+df <- read.csv("input/raw_data/raw_dataset_efsa22_010822.csv", sep = ";"
                , comment.char = "", strip.white = TRUE,
-               stringsAsFactors = TRUE, fileEncoding="UTF-8")
+               stringsAsFactors = TRUE, encoding="UTF-8-BOM")
+names(df)[names(df) == 'ï..Apl'] <- "Apl"
 
 
 #############################
 # change column names
 #change_names <- read_excel("Input/Codebook_Questionnaire_EFSA22.xlsx", sheet = "colnames")
-change_names <- read.csv("Input/Codebook_Questionnaire_EFSA22.csv", sep=";")
+change_names <- read.csv("Input/Codebook_Questionnaire_EFSA22.csv", sep=";", 
+                         fileEncoding="UTF-8-BOM")
 names(df) <- plyr::mapvalues(names(df), from = change_names$old_name, to = change_names$new_name)
 table(change_names$new_name %in% names(df))
 
@@ -127,12 +129,12 @@ df[,cols] = apply(df[,cols], 2, function(x) as.numeric(as.character(x)))
 df <- df %>% 
   mutate(not_eligible = case_when(lcs_sacar_ninos_escuela == "" ~ "not_eligible",
                                   TRUE ~ "eligible"))
-df$not_eligible
+table(df$not_eligible)
 
 
 ####################################
 # change date format
-df$date_assessment <- strptime(as.character(df$fecha_in), "%d_%m_%Y")
+df$date_assessment <- strptime(as.character(df$fecha_in), "%Y_%m_%d")
 df$date_assessment <-  format(df$date, "%Y-%m-%d")
 
 
@@ -200,6 +202,18 @@ loop <- loop_generator(df)
 #       "ind18_nombre", "ind19_nombre")] <- list(NULL)
 
 
+#select variables that will be shared with gifmm
+#df <- df %>% select(registro, departamento, pcode, barrio, nacionalidad_jefe_hogar, tipo_migrante_jefe_hogar, 
+#                         grupo_jefe_hogar, sexo_jh, sexo_jh_otro, nivel_estudios_jh, nr_escuela_colegio, 
+#                         ingreso, tipo_vivienda, tipo_vivienda_otro, material_paredes_exteriores, 
+#                         material_paredes_exteriores_otro, material_pisos, material_pisos_otro, nr_cuartos_total, 
+#                         tipo_servicio_sanitario, tipo_servicio_sanitario_otro, acuerdo_ocupacion)
+
+#loop <- loop %>% select(registro, sexo, edad, edad_anos_meses)
+
+
+
+
 ##########################################################################################################
 ### EXPORT FOR DATA CHECKING #############
 
@@ -238,5 +252,7 @@ xl_lst <- list('hogar' = df, 'individual' = loop)
 write.xlsx(xl_lst, file = sprintf("output/data_checking/efsa_all_data_%s.xlsx",today()))
 
 
-# import nutritional dataset
+# import nutritional dataset and merge with household-level data
 source("import_nutritional.R")
+
+
