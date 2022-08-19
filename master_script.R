@@ -19,7 +19,7 @@ library(htmlwidgets)
 source("functions/function_handler.R")
 source("functions/loop_generator.R")
 
-assessment_start_date <- as.Date("2022-08-01")
+assessment_start_date <- as.Date("2022-06-20")
 
 delete_time_limit <- 20
 flag_time_limit <- 35
@@ -27,7 +27,7 @@ flag_time_limit <- 35
 
 # read data from excel file
 #df <- read_excel("input/raw_data/raw_dataset_efsa22_240622.xlsx")
-df <- read.csv("input/raw_data/raw_dataset_efsa22_010822.csv", sep = ";"
+df <- read.csv("input/raw_data/CLEAN_FULL_dataset_WFP_EFSA22_110822.csv", sep = ";"
                , comment.char = "", strip.white = TRUE,
                stringsAsFactors = TRUE, encoding="UTF-8-BOM")
 names(df)[names(df) == 'ï..Apl'] <- "Apl"
@@ -83,8 +83,8 @@ df$departamento[df$departamento == "bogota__d_c_"] <- "bogota_dc"
 
 ############################
 # remove interviews that are market rechazado or en curso
-df <- filter(df, 
-                  estado == "finalizada__mobinet_")
+#df <- filter(df, 
+#                  estado == "finalizada__mobinet_")
 
 
 ############################
@@ -134,7 +134,7 @@ table(df$not_eligible)
 
 ####################################
 # change date format
-df$date_assessment <- strptime(as.character(df$fecha_in), "%Y_%m_%d")
+df$date_assessment <- strptime(as.character(df$fecha_in), "%d_%m_%Y")
 df$date_assessment <-  format(df$date, "%Y-%m-%d")
 
 

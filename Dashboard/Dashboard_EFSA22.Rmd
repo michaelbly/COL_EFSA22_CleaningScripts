@@ -1,5 +1,5 @@
 ---
-title: 'WFP-CNC EFSA22: Recogida de Datos - 01/08/2022 11:00'
+title: 'WFP-CNC EFSA22: Recogida de Datos - 04/08/2022 10:30'
 output:
 always_allow_html: true
 html_document: default
@@ -37,6 +37,7 @@ library(leaflet)
 library(htmlwidgets)
 library(stringr)
 library(stringi)
+library(plotly)
 ```
 ```{r, include=FALSE}
 
@@ -45,7 +46,7 @@ options(dplyr.summarise.inform = FALSE)
 WGS84 <- raster::crs("+init=epsg:4326")
 UTM38N <- raster::crs("+init=epsg:32638")
 
-assessment_start_date <- as.Date("2022-08-01")
+assessment_start_date <- as.Date("2022-06-20")
 
 ##### set min time and max # interviews per day
 
@@ -53,10 +54,10 @@ delete_time_limit <- 20
 flag_time_limit <- 35
 
 
-dat <- read.csv("Input/efsa_all_data_2022-08-01.csv",
+dat <- read.csv("Input/efsa_all_data_2022-08-04.csv",
                stringsAsFactors = TRUE)
 
-n_dat <- read.csv("Input/nutritional_data/nutritional_data_2022-08-01.csv",
+n_dat <- read.csv("Input/nutritional_data/nutritional_data_2022-08-04.csv",
                stringsAsFactors = TRUE)
 
 ########## LOAD SHAPE FILES ########################
@@ -679,6 +680,35 @@ survey_status_per_day <- dat %>%
             Marcada_Tiempo = sum(time_validity == "Flagged" | time_validity == "Delete", na.rm = T )
   )
 
+
+survey_status_per_day$Fecha <- strptime(as.character(survey_status_per_day$Fecha), "%Y-%m-%d")
+survey_status_per_day$Fecha <-  format(survey_status_per_day$Fecha, "%m/%d/%y")
+
+
+library(plotly)
+fig <- plot_ly(survey_status_per_day, x = ~Fecha, y = ~Aceptado, type = 'bar', name = 'Aceptado',
+               marker = list(color = 'rgb(55, 83, 109)'))
+fig <- fig %>% add_trace(y = ~Marcada_Tiempo, name = 'Marcado', marker = list(color = 'rgb(168, 56, 50)'))
+fig <- fig %>% layout(title = "",
+                      xaxis = list(
+                        title = "",
+                        tickfont = list(
+                          size = 14,
+                          color = 'rgb(107, 107, 107)')),
+                      yaxis = list(
+                        title = 'Encuestas',
+                        titlefont = list(
+                          size = 16,
+                          color = 'rgb(107, 107, 107)'),
+                        tickfont = list(
+                          size = 14,
+                          color = 'rgb(107, 107, 107)')),
+                      legend = list(x = 0, y = 1, bgcolor = 'rgba(255, 255, 255, 0)', bordercolor = 'rgba(255, 255, 255, 0)'),
+                      barmode = 'group', bargap = 0.15, bargroupgap = 0.1)
+
+
+
+
 func <- function(z) if (is.numeric(z)) sum(z, na.rm = T) else ''
 sumrow_total <- as.data.frame(lapply(survey_status_per_day, func))
 sumrow_total
@@ -740,6 +770,8 @@ library(data.table)
 overall_merged <- rbindlist(list(acogida_tracking_merged, 
                permanencia_tracking_merged, retornados_tracking_merged,
                transito_tracking_merged, pendularios_tracking_merged), fill = TRUE)[,lapply(.SD, sum, na.rm = TRUE) , departamento]
+write.csv(overall_merged, "Output/overall_merged_map.csv")
+
 # join shapes with tracking table
 df.map <- left_join(adm, overall_merged, by="departamento") %>%
   mutate(pct.done=pmin(Aceptado/Tamano_Muestra*100, 100))
@@ -827,8 +859,10 @@ DT::datatable(full_entrevistador,
 
 
 ## Progreso Recolección
-
 <center>**Número de encuestas por Dia** </center> </br>
+```{r eval=TRUE, fig.align = 'right', echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+fig
+```
 
 ```{r eval=TRUE, echo=FALSE, results='asis'}
 kable(survey_status_per_day)%>%
