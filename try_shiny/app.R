@@ -15,8 +15,9 @@ library(DT)                                                                     
 library(kableExtra)                                                               # to make tables
 library(scales)                                                                   # to define percentages
 library(shinydashboard)
-
+library(leaflet.extras)
       
+
 #### 2 LOAD DATA ###############################################################
 adm <- st_read("try_shiny/gis/shapefiles_unzipped/col_admbnda_adm1_mgn_20200416.shp") %>% 
   st_transform(crs = 4326)
@@ -88,7 +89,25 @@ map_home <- leaflet(options = leafletOptions(zoomControl = FALSE,
   addProviderTiles("Esri.WorldGrayCanvas")
 
 
+# create overview table
+start_date <- "05.08.2022"
+municipios_covered    <- n_distinct(df$municipio, na.rm = FALSE)
+departamentos_covered <- n_distinct(df$departamento, na.rm = FALSE)
+nr_enumerators <- n_distinct(df$entrevistador, na.rm = FALSE)
+median_duration <- paste0(round(mean(df$duracion/60),0), "min")
 
+overview_round       <- data.frame(figure = c("Start Date", "Municipalities Covered", "Departamentos Covered", "# of Enumerators", "Median Interview Duration"),
+                                   value  = c(start_date, municipios_covered, departamentos_covered, nr_enumerators, median_duration)
+)
+
+table_round <- overview_round %>%                                                                         # style overview table
+  kbl(escape = F, format.args = list(big.mark = ","), align = "lr", col.names = NULL) %>%
+  column_spec(1, width = "12em") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), fixed_thead = T, full_width = T) %>%
+  row_spec(1,   extra_css = "font-size: 11.5px; border-top: 2px solid gainsboro") %>%
+  row_spec(2:5, extra_css = "font-size: 11.5px;")
+
+df$departamento <- as.character(as.factor(df$departamento))
 
 #### 6 UI ######################################################################
 
@@ -99,12 +118,15 @@ ui <- bootstrapPage(
                
                #### * 6.1 Home ######################################################################
                
-               tabPanel("Overview",                                                                      # define panel title
+               tabPanel("Overview",  
+                        tags$head(
+                          tags$style(HTML(".leaflet-container { background: #FFFFFF; }"))
+                        ),            # define panel title
 
                             absolutePanel(                                                                # define introduction box
                                 id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
                                 top = 70, left = "20", right = "auto", bottom = "auto", width = "600", height = 350,
-                                h4("Introduction"),
+                                h4("Introduction:"),
                                 p("The Joint Price Monitoring Initiative (JPMI) is a bi-monthly data collection exercise launched by the Iraq Cash Working Group (CWG)
                                    in November 2016. The initiative aims to inform cash-based interventions in Iraq by providing indicative information on key commodities
                                    sold in local marketplaces. The initiative is guided by the CWG, led by REACH and supported by the CWG members.",
@@ -118,20 +140,23 @@ ui <- bootstrapPage(
                             absolutePanel(                                                                # define introduction box
                               id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
                               top = 440, left = "20", right = "auto", bottom = "auto", width = "600", height = 40,
-                              h4("Total Number Surveys:", HTML('&nbsp;'),HTML('&nbsp;'),  strong(sum(home_total$count)))
+                              h4("Total Number Surveys:", HTML('&nbsp;'),HTML('&nbsp;'),  
+                                 strong(sum(home_total$count), style = "color: #075287"), HTML('&nbsp;'), 
+                                 "(", strong(paste0(round((sum(home_total$count)/7000)*100,0),"%"), style = "color: #075287"),)
                             ),
                               
                               
                             absolutePanel(                                                                    # define chart box
                                 id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
                                 top = "500", left = "20", right = "auto", bottom = "auto", width = "600", height = "430",
+                                h4("# of Surveys per Day:"),
                                 hchart(home_merged, "column",                                           # define chart
                                        hcaes(x = date_assessment, y = count, group = pop_group)) %>%
                                     hc_yAxis(min = 0, title = list(text = "")) %>%
                                     hc_xAxis(title = "", labels = list(align = "center")) %>%
                                     hc_size(height = "453") %>%
                                     hc_title(
-                                        text = "Overall Median SMEB Over Time (in IQD)",
+                                        text = "",
                                         margin = 10,
                                         align = "left",
                                         style = list(fontSize = 15)
@@ -141,14 +166,52 @@ ui <- bootstrapPage(
                                               layout = "horizontal")
                             ),
 
-                            
+                        absolutePanel(
+                          id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
+                          top = "70", left = "650", right = "auto", bottom = "auto", width = "400", height = "185",
+                          h4("Overview:"),
+                          HTML(table_round), br()
+                        ),
+                  
+
                           absolutePanel(                                                                    # define chart box
                            id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
-                           top = "70", left = "650", right = "auto", bottom = "auto", width = "auto", height = "auto",
-                           h4(strong("Mapa:")),
-                           leafletOutput("map_home", width = "600", height = "600")), 
+                           top = "265", left = "650", right = "auto", bottom = "auto", width = "auto", height = "auto",
+                           h4("Progress Map:"),
+                           leafletOutput("map_home", width = "600", height = "600")
+                           ), 
                         
                         
+               ), 
+               
+               tabPanel("Data Explorer", 
+                        
+                        sidebarLayout(
+                          sidebarPanel(
+                            
+
+
+                                      pickerInput("table_department",
+                                                         label = "Department:",   
+                                                         options = list(title = "Select"),
+                                                         choices = sort(unique(df$departamento)),
+                                                         multiple = FALSE
+                                             ),
+
+ 
+
+                            hr(),
+                            
+                            downloadButton("downloadData", "Download as CSV"),
+                            
+                            width = 3
+                          ),
+                          
+                          mainPanel(
+                            DT::dataTableOutput("data_table_enumerator", width = "100%", height = "100%"),
+                            width = 9
+                          )
+                        )
                )
                
                    #### * 6.3 Map ######################################################################
@@ -166,7 +229,7 @@ server <- function(input, output, session) {
   
   labels <- paste(
     "<strong>", df.map$departamento,
-    "</strong><br>% Completado:", round(df.map$pct.done,  1),
+    "</strong><br>% Completado:", paste0(round(df.map$pct.done,  1),"%"),
     "</strong><br># Restante:", df.map$Restante, 
     "</strong><br># Marcada Tiempo:", df.map$Marcada_Tiempo) %>%
     lapply(htmltools::HTML)
@@ -177,9 +240,36 @@ server <- function(input, output, session) {
     addPolygons(data=df.map, color = ~pal(df.map$pct.done),
                 weight = 1, opacity = 0.5, fill = T, fillOpacity = 0.7,
                 label=labels) %>%
-    addMeasure(primaryLengthUnit = "kilometers")
+    addMeasure(primaryLengthUnit = "kilometers") 
+
   })
   
+  ######## Data Table
+  data_table_enumerator <- function(){
+    df %>% 
+      filter(departamento == input$table_department) %>% 
+      dplyr::group_by(entrevistador) %>% 
+      dplyr::summarise(Cargado = n(),
+                       Flagged = sum(time_validity == "Flagged", na.rm = T),
+                       Median_Duration = round(median(duracion / 60),0),
+                       Nr_surveys_pd = (n() / n_distinct(delete == "no", na.rm = T)) %>%
+                         sort(Flagged, decreasing = T))
+  }
+  # MODIFY CODE BELOW: Render a DT output named "table_top_10_names"
+  output$data_table_enumerator <- DT::renderDT({
+    DT::datatable(data_table_enumerator())
+  })
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste("IRQ-JPMI-data-download-", Sys.Date(),".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(data_table_enumerator(), file, row.names = FALSE, na = "")
+    }
+  )
+  
+
 }                                                                                 # close server function
 
 shinyApp(ui = ui, server = server)                                                # run the application
