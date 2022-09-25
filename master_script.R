@@ -58,8 +58,8 @@ accented_letters <- function (x){
                          c("a","e","n","i","o","u","n","u","A","O","I","N"),
                          vectorize_all = FALSE)}
 
-df <- rapply(df, f = accented_letters, classes = c("factor"), how = "replace")
-df <- rapply(df, f = accented_letters, classes = c("factor"), how = "replace")
+df <- rapply(df, f = accented_letters, classes = c("factor", "character"), how = "replace")
+df <- rapply(df, f = accented_letters, classes = c("factor", "character"), how = "replace")
 
 
 
@@ -85,6 +85,7 @@ df$departamento[df$departamento == "bogota__d_c_"] <- "bogota_dc"
 # remove interviews that are market rechazado or en curso
 #df <- filter(df, 
 #                  estado == "finalizada__mobinet_")
+
 
 
 ############################
@@ -185,6 +186,12 @@ df$tot_gastos <- as.numeric(apply(df[,c("gastos_cereales","gastos_tuberculos",
 # average consumption in past week
 df$average_consumption <- (df$fcs_azucares + df$fcs_carne + df$fcs_cereales + df$fcs_condimentos +
   df$fcs_frutas + df$fcs_leche + df$fcs_vegetales) / 8
+
+
+# clean gastos data according to Tito's guidance
+source("functions/exp_cleaner.R")
+df <- expenditure_cleaner(df)
+
 
 
 # generate loop separately and remove individual data from household dataset

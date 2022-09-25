@@ -67,7 +67,7 @@ home_merged <- home_total %>%
 
 # generate map
 pal.strata <- colorNumeric(c("red", "yellow", "green"), 0:100)
-pal <- colorNumeric(palette = "Blues", 0:100)
+pal <- colorNumeric(palette = "RdYIGn", 0:100)
 
 
 labels <- paste(
@@ -77,16 +77,6 @@ labels <- paste(
   "</strong><br># Marcada Tiempo:", df.map$Marcada_Tiempo) %>%
   lapply(htmltools::HTML)
 
-map_home <- leaflet(options = leafletOptions(zoomControl = FALSE,
-                                 minZoom = 5.7, maxZoom = 5.7, dragging = FALSE, width = "100%")) %>%
-  addPolygons(data=df.map, color = "black", weight = 0.5, opacity = 1, fill = F, fillOpacity = 0, 
-              smoothFactor = 0, stroke = TRUE) %>%
-  addPolygons(data=df.map, color = ~pal(df.map$pct.done),
-              weight = 1, opacity = 0.5, fill = T, fillOpacity = 0.7,
-              label=labels) %>%
-  addTiles() %>%
-  addMeasure(primaryLengthUnit = "kilometers") %>% 
-  addProviderTiles("Esri.WorldGrayCanvas")
 
 
 # create overview table
@@ -109,6 +99,9 @@ table_round <- overview_round %>%                                               
 
 df$departamento <- as.character(as.factor(df$departamento))
 
+
+
+
 #### 6 UI ######################################################################
 
 ui <- bootstrapPage(
@@ -123,16 +116,23 @@ ui <- bootstrapPage(
                           tags$style(HTML(".leaflet-container { background: #FFFFFF; }"))
                         ),            # define panel title
 
+                        leafletOutput("map_home_gaggi", width = "100%", height = 1000), 
+                        tags$style(type = "text/css", ".container-fluid {padding-left:0px;
+                    padding-right:0px;}"),
+                        tags$style(type = "text/css", ".navbar {margin-bottom: .5px;}"),
+                        tags$style(type = "text/css", ".container-fluid .navbar-header 
+                    .navbar-brand {margin-left: 0px;}"),# display background map
+                        
                             absolutePanel(                                                                # define introduction box
                                 id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
                                 top = 70, left = "20", right = "auto", bottom = "auto", width = "600", height = 350,
                                 h4("Introduction:"),
-                                p("The Joint Price Monitoring Initiative (JPMI) is a bi-monthly data collection exercise launched by the Iraq Cash Working Group (CWG)
-                                   in November 2016. The initiative aims to inform cash-based interventions in Iraq by providing indicative information on key commodities
-                                   sold in local marketplaces. The initiative is guided by the CWG, led by REACH and supported by the CWG members.",
+                                p("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent at risus vehicula, dapibus justo ac, laoreet velit. In et orci vel libero placerat faucibus aliquet ut turpis. Fusce blandit at turpis eget hendrerit. 
+                                  Integer fermentum bibendum lectus a fermentum. Pellentesque quis nisl sollicitudin, dictum lacus vitae, fringilla orci. Suspendisse ultrices egestas turpis, at eleifend magna consequat vel. Morbi tincidunt enim sed efficitur porta. 
+                                  Aliquam volutpat tempor orci eu euismod. In hac habitasse platea dictumst. Aliquam gravida elit sed luctus accumsan. Cras dapibus mauris id tempus bibendum. Nam auctor congue finibus. In sem dui, faucibus eu placerat at, imperdiet sit amet urna. Quisque ligula felis, sagittis ac fringilla id, malesuada ut ex.",
                                   style="text-align:justify"),
-                                p("This website displays a wide range of indicators collected through the JPMI, such as prices for key food
-                                   and non-food items (NFIs), as well as the costs associated with the Survival Minimum Expenditure Basket (SMEB).",
+                                p("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent at risus vehicula, dapibus justo ac, laoreet velit. In et orci vel libero placerat faucibus aliquet ut turpis. Fusce blandit at turpis eget hendrerit. Integer fermentum bibendum lectus a fermentum. 
+                                  Pellentesque quis nisl sollicitudin, dictum lacus vitae, fringilla orci. Suspendisse ultrices egestas turpis, at eleifend magna consequat vel. Morbi tincidunt enim sed efficitur porta.",
                                   style="text-align:justify"),
                                 br()
                             ),
@@ -141,8 +141,8 @@ ui <- bootstrapPage(
                               id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
                               top = 440, left = "20", right = "auto", bottom = "auto", width = "600", height = 40,
                               h4("Total Number Surveys:", HTML('&nbsp;'),HTML('&nbsp;'),  
-                                 strong(sum(home_total$count), style = "color: #075287"), HTML('&nbsp;'), 
-                                 "(", strong(paste0(round((sum(home_total$count)/7000)*100,0),"%"), style = "color: #075287"),)
+                                 strong(format(sum(home_total$count), big.mark = ","), style = "color: #922121"), 
+                                 "(", paste0(round((sum(home_total$count)/7000)*100,0),"%"), ")")
                             ),
                               
                               
@@ -150,6 +150,7 @@ ui <- bootstrapPage(
                                 id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
                                 top = "500", left = "20", right = "auto", bottom = "auto", width = "600", height = "430",
                                 h4("# of Surveys per Day:"),
+                                tags$br(),
                                 hchart(home_merged, "column",                                           # define chart
                                        hcaes(x = date_assessment, y = count, group = pop_group)) %>%
                                     hc_yAxis(min = 0, title = list(text = "")) %>%
@@ -168,7 +169,7 @@ ui <- bootstrapPage(
 
                         absolutePanel(
                           id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
-                          top = "70", left = "650", right = "auto", bottom = "auto", width = "400", height = "185",
+                          top = "70", left = "650", right = "auto", bottom = "auto", width = "550", height = "185",
                           h4("Overview:"),
                           HTML(table_round), br()
                         ),
@@ -178,8 +179,10 @@ ui <- bootstrapPage(
                            id = "home", class = "panel panel-default", fixed = FALSE, draggable = FALSE,
                            top = "265", left = "650", right = "auto", bottom = "auto", width = "auto", height = "auto",
                            h4("Progress Map:"),
-                           leafletOutput("map_home", width = "600", height = "600")
+                           leafletOutput("map_progress", width = "600", height = "600")
                            ), 
+                        
+
                         
                         
                ), 
@@ -195,7 +198,9 @@ ui <- bootstrapPage(
                                                          label = "Department:",   
                                                          options = list(title = "Select"),
                                                          choices = sort(unique(df$departamento)),
-                                                         multiple = FALSE
+                                                         multiple = FALSE, 
+                                                         selected = "antioquia"
+                                                  
                                              ),
 
  
@@ -225,7 +230,16 @@ ui <- bootstrapPage(
 #### 7 SERVER ##################################################################
 
 server <- function(input, output, session) {
-  pal <- colorNumeric(palette = "Blues", 0:100)
+  
+  output$map_home_gaggi <- renderLeaflet({
+    map_home <- leaflet(options = leafletOptions(attributionControl=FALSE, zoomControl = FALSE, dragging = FALSE, minZoom = 12, maxZoom = 12)) %>%
+      setView(lng = -74.052536, lat = 4.666264, zoom = 12) %>%
+      addProviderTiles(providers$CartoDB.PositronNoLabels, group = "CartoDB",
+                       options = providerTileOptions(opacity = 0.8))
+  })
+  
+  
+  pal <- colorNumeric(c("firebrick", "burlywood", "forestgreen"), 0:100)
   
   labels <- paste(
     "<strong>", df.map$departamento,
@@ -234,7 +248,7 @@ server <- function(input, output, session) {
     "</strong><br># Marcada Tiempo:", df.map$Marcada_Tiempo) %>%
     lapply(htmltools::HTML)
   
-  output$map_home <- renderLeaflet({
+  output$map_progress <- renderLeaflet({
   leaflet(options = leafletOptions(zoomControl = FALSE,
                                    minZoom = 5.7, maxZoom = 5.7, dragging = FALSE, width = "100%")) %>%
     addPolygons(data=df.map, color = ~pal(df.map$pct.done),
@@ -252,12 +266,14 @@ server <- function(input, output, session) {
       dplyr::summarise(Cargado = n(),
                        Flagged = sum(time_validity == "Flagged", na.rm = T),
                        Median_Duration = round(median(duracion / 60),0),
-                       Nr_surveys_pd = (n() / n_distinct(delete == "no", na.rm = T)) %>%
+                       Nr_surveys_pd = round((n() / n_distinct(date_assessment, na.rm = T)),1) %>%
                          sort(Flagged, decreasing = T))
   }
   # MODIFY CODE BELOW: Render a DT output named "table_top_10_names"
   output$data_table_enumerator <- DT::renderDT({
-    DT::datatable(data_table_enumerator())
+    DT::datatable(data_table_enumerator(), options = list(
+      lengthMenu = list(c(10, 50, -1), c('10', '50', 'Todos')),
+      pageLength = 50))
   })
   
   output$downloadData <- downloadHandler(
