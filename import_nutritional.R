@@ -91,6 +91,7 @@ n_df_original$final_peso_infante_ninos023 <- as.numeric(as.character(n_df_origin
 n_df <- bind_rows(n_df_retoma, n_df_original)
 
 
+gaggi <- n_df %>% select(starts_with("edad"), "EDAD")
 
 
 
@@ -170,18 +171,18 @@ loop_ninos_023 <- n_df %>% dplyr::select(registro, pop_group, sexo, which(endsWi
 
 
 loop_ninos_2459 <- n_df %>% dplyr::select(registro, pop_group, sexo, which(endsWith(names(n_df), "_ninos2459"))) %>%
-  filter(edad_ninos2459 != "") %>%
+  filter(final_talla_ninos2459 != "") %>%
   mutate(across(c(4:last_col()), na_if, 999)) %>%
   mutate(across(c(4:last_col()), na_if, 999.0))
 
 loop_gestantes <- n_df %>% dplyr::select(registro, pop_group, sexo, which(endsWith(names(n_df), "_gestante"))) %>%
-  filter(edad_gestante != "") %>%
+  filter(final_talla_gestante != "") %>%
   mutate(across(c(4:last_col()), na_if, 999)) %>%
   mutate(across(c(4:last_col()), na_if, 999.0))
   
 
 loop_mayores65 <- n_df %>% dplyr::select(registro, pop_group, sexo, which(endsWith(names(n_df), "_mayores"))) %>%
-  filter(edad_mayores != "") %>%
+  filter(final_peso_mayores != "") %>%
   mutate(across(c(2:last_col()), na_if, 999)) %>%
   mutate(across(c(2:last_col()), na_if, 999.0))
 
